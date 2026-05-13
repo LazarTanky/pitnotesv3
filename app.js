@@ -456,7 +456,7 @@ function addRaceEvent(d = null) {
   const i = reCount;
   const container = document.getElementById('re-container');
 
-  const rows = ['pressure', 'turns', 'bar-size', 'compression', 'rebound'];
+  const rows = ['bar-size', 'turns', 'rebound', 'compression', 'PSI'];
   const corners = ['lf', 'rf', 'lr', 'rr'];
 
   // Build tire table rows
@@ -512,7 +512,7 @@ function addRaceEvent(d = null) {
 // Collect all race event data from DOM into an array of objects
 function collectRE() {
   const events = [];
-  const rows = ['pressure', 'turns', 'bar-size', 'compression', 'rebound'];
+  const rows = ['bar-size', 'turns', 'rebound', 'compression', 'PSI'];
   const corners = ['lf', 'rf', 'lr', 'rr'];
 
   document.querySelectorAll('#re-container .re-block').forEach(block => {
