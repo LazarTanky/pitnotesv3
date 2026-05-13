@@ -434,7 +434,7 @@ textarea::placeholder { color: var(--muted); }
   transition: background .2s;
   animation: fadeUp .3s ease both;
 }
-.session-card:hover { background: #222; }
+.session-card:hover { background: var(--border); }
 
 .card-track {
   font-family: var(--fh);
