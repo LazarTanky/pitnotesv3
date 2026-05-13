@@ -90,19 +90,19 @@ function sbDelete(table, id) {
 ──────────────────────────────────────── */
 let ACCESS_TOKEN  = null;
 let REFRESH_TOKEN = null;
-let CU            = null; // current user object
+let CU = null; // current user object
 
 function saveTokens(access, refresh, user) {
   ACCESS_TOKEN  = access;
   REFRESH_TOKEN = refresh;
-  CU            = user;
+  CU = user;
   localStorage.setItem('pn_token', JSON.stringify({ access, refresh, user }));
 }
 
 function clearTokens() {
   ACCESS_TOKEN  = null;
   REFRESH_TOKEN = null;
-  CU            = null;
+  CU = null;
   localStorage.removeItem('pn_token');
 }
 
@@ -112,7 +112,7 @@ function loadTokens() {
     if (d) {
       ACCESS_TOKEN  = d.access;
       REFRESH_TOKEN = d.refresh;
-      CU            = d.user;
+      CU = d.user;
       return true;
     }
   } catch (e) { /* corrupted storage — just ignore */ }
@@ -123,18 +123,18 @@ function loadTokens() {
 /* ────────────────────────────────────────
    3. APP STATE
 ──────────────────────────────────────── */
-let cars    = [];
+let cars = [];
 let sessions = [];
-let ACI     = null;   // active car id (filter)
+let ACI = null;   // active car id (filter)
 let editSid = null;   // session being edited
 let detailId = null;  // session open in detail modal
 let editCid = null;   // car being edited
 
 let pendingPhotos = [];  // base64 photos staged for new/edit session
-let reCount       = 0;   // race-event counter (used to generate unique input IDs)
+let reCount = 0;   // race-event counter (used to generate unique input IDs)
 
-let standalonePhotos    = [];   // staged for standalone photo upload
-let currentCarPhotosId  = null; // car whose photo modal is open
+let standalonePhotos = [];   // staged for standalone photo upload
+let currentCarPhotosId = null; // car whose photo modal is open
 
 
 /* ────────────────────────────────────────
@@ -159,19 +159,19 @@ window.addEventListener('DOMContentLoaded', () => {
    5. AUTH — LOGIN / REGISTER / LOGOUT
 ──────────────────────────────────────── */
 function showLogin() {
-  document.getElementById('login-form').style.display    = '';
+  document.getElementById('login-form').style.display = '';
   document.getElementById('register-form').style.display = 'none';
 }
 
 function showRegister() {
-  document.getElementById('login-form').style.display    = 'none';
+  document.getElementById('login-form').style.display = 'none';
   document.getElementById('register-form').style.display = '';
 }
 
 async function doLogin() {
   const email = document.getElementById('login-email').value.trim();
-  const pass  = document.getElementById('login-pass').value;
-  const err   = document.getElementById('login-error');
+  const pass = document.getElementById('login-pass').value;
+  const err = document.getElementById('login-error');
 
   if (!email || !pass) {
     err.textContent = 'Fill in all fields.';
@@ -192,8 +192,8 @@ async function doLogin() {
 
 async function doRegister() {
   const email = document.getElementById('reg-email').value.trim();
-  const pass  = document.getElementById('reg-pass').value;
-  const err   = document.getElementById('reg-error');
+  const pass = document.getElementById('reg-pass').value;
+  const err = document.getElementById('reg-error');
 
   if (!email || !pass) { err.textContent = 'All fields required.'; err.classList.add('show'); return; }
   if (pass.length < 6) { err.textContent = 'Password min 6 chars.'; err.classList.add('show'); return; }
@@ -221,7 +221,7 @@ function loginSuccess() {
   document.getElementById('app-screen').classList.add('active');
 
   const em = CU.email || '';
-  document.getElementById('profile-avatar').textContent       = em.charAt(0).toUpperCase();
+  document.getElementById('profile-avatar').textContent = em.charAt(0).toUpperCase();
   document.getElementById('profile-email-display').textContent = em;
 
   loadAll();
@@ -256,11 +256,11 @@ async function loadAll() {
 
     if (c.code || s.code) throw new Error(c.message || s.message || 'DB error');
 
-    cars     = Array.isArray(c) ? c : [];
+    cars = Array.isArray(c) ? c : [];
     sessions = Array.isArray(s) ? s : [];
   } catch (e) {
     console.error('loadAll error:', e);
-    cars     = [];
+    cars = [];
     sessions = [];
     showToast('Load error: ' + e.message);
   }
@@ -281,7 +281,7 @@ function openCarModal(id = null) {
   document.getElementById('car-modal-title').textContent = id ? 'Edit Car' : 'Add Car';
 
   const car = id ? cars.find(c => c.id === id) : null;
-  document.getElementById('cm-num').value   = car ? car.num        : '';
+  document.getElementById('cm-num').value = car ? car.num : '';
   document.getElementById('cm-name').value  = car ? car.name  || '' : '';
   document.getElementById('cm-class').value = car ? car.cls   || '' : '';
   document.getElementById('cm-notes').value = car ? car.notes || '' : '';
@@ -295,19 +295,19 @@ async function saveCar() {
 
   const payload = {
     num,
-    name:    document.getElementById('cm-name').value.trim(),
-    cls:     document.getElementById('cm-class').value.trim(),
-    notes:   document.getElementById('cm-notes').value.trim(),
+    name: document.getElementById('cm-name').value.trim(),
+    cls: document.getElementById('cm-class').value.trim(),
+    notes: document.getElementById('cm-notes').value.trim(),
     user_id: CU.id,
   };
 
   try {
     if (editCid) {
-      const res     = await sbUpdate('cars', editCid, payload);
+      const res = await sbUpdate('cars', editCid, payload);
       const updated = Array.isArray(res) ? res[0] : res;
       cars = cars.map(c => c.id === editCid ? updated : c);
     } else {
-      const res      = await sbInsert('cars', payload);
+      const res = await sbInsert('cars', payload);
       const inserted = Array.isArray(res) ? res[0] : res;
       cars.unshift(inserted);
     }
@@ -437,7 +437,7 @@ function clearForm() {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
-  ['lr-radius', 'rr-radius', 'rr-jacobs'].forEach(id => {
+  ['lr-radius', 'rr-radius', 'rr-jacobs', 'front-panhard'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
@@ -512,7 +512,7 @@ function addRaceEvent(d = null) {
 // Collect all race event data from DOM into an array of objects
 function collectRE() {
   const events = [];
-  const rows   = ['pressure', 'turns', 'bar-size', 'compression', 'rebound'];
+  const rows = ['pressure', 'turns', 'bar-size', 'compression', 'rebound'];
   const corners = ['lf', 'rf', 'lr', 'rr'];
 
   document.querySelectorAll('#re-container .re-block').forEach(block => {
@@ -531,12 +531,12 @@ function collectRE() {
     tires.stagger = { rr: gv(`re-stagger-rr-${i}`) };
 
     events.push({
-      start:   gv(`re-start-${i}`),
-      finish:  gv(`re-finish-${i}`),
+      start: gv(`re-start-${i}`),
+      finish: gv(`re-finish-${i}`),
       numCars: gv(`re-cars-${i}`),
-      laps:    gv(`re-laps-${i}`),
-      cond:    gv(`re-cond-${i}`),
-      note:    gv(`re-note-${i}`),
+      laps: gv(`re-laps-${i}`),
+      cond: gv(`re-cond-${i}`),
+      note: gv(`re-note-${i}`),
       tires,
     });
   });
@@ -584,40 +584,44 @@ async function saveSession() {
     corners[cn] = {};
     CORNER_FIELDS.forEach(f => { corners[cn][f] = gv(cn + '-' + f); });
   });
-  corners.rr.stagger  = gv('rr-stagger');
-  corners.rr.spacing  = gv('rr-spacing');
-  corners.lr.spacing  = gv('lr-spacing');
-  corners.lr.radius   = gv('lr-radius');
-  corners.rr.radius   = gv('rr-radius');
-  corners.rr.jacobs   = gv('rr-jacobs');
+  corners.rr.stagger = gv('rr-stagger');
+  corners.rr.spacing = gv('rr-spacing');
+  corners.lr.spacing = gv('lr-spacing');
+  const bolt_ons = {
+    lr_radius:     gv('lr-radius'),
+    rr_radius:     gv('rr-radius'),
+    jacobs_ladder: gv('rr-jacobs'),
+    front_panhard: gv('front-panhard'),
+  };
 
   const payload = {
-    user_id:     CU.id,
-    car_id:      gv('ns-car') || null,
+    user_id: CU.id,
+    car_id: gv('ns-car') || null,
     track,
-    date:        gv('ns-date'),
-    driver:      gv('ns-driver'),
-    cls:         gv('ns-class'),
-    cond:        gv('ns-condition'),
-    engine:      gv('ns-engine'),
-    gear:        gv('ns-gear'),
-    exhaust:     gv('ns-exhaust'),
-    injection:   gv('ns-injection'),
-    fp:          gv('ns-fp'),
-    wing:        gv('ns-wing'),
+    date: gv('ns-date'),
+    driver: gv('ns-driver'),
+    cls: gv('ns-class'),
+    cond: gv('ns-condition'),
+    engine: gv('ns-engine'),
+    gear: gv('ns-gear'),
+    exhaust: gv('ns-exhaust'),
+    injection: gv('ns-injection'),
+    fp: gv('ns-fp'),
+    wing: gv('ns-wing'),
     corners,
+    bolt_ons,
     race_events: collectRE(),
-    notes:       gv('ns-notes'),
-    photos:      pendingPhotos,
+    notes: gv('ns-notes'),
+    photos: pendingPhotos,
   };
 
   try {
     if (editSid) {
-      const res     = await sbUpdate('sessions', editSid, payload);
+      const res = await sbUpdate('sessions', editSid, payload);
       const updated = Array.isArray(res) ? res[0] : res;
       sessions = sessions.map(s => s.id === editSid ? updated : s);
     } else {
-      const res      = await sbInsert('sessions', payload);
+      const res = await sbInsert('sessions', payload);
       const inserted = Array.isArray(res) ? res[0] : res;
       sessions.unshift(inserted);
     }
@@ -640,18 +644,18 @@ function editSession() {
   editSid = s.id;
 
   document.getElementById('ns-title').textContent = 'Edit Session';
-  document.getElementById('ns-track').value       = s.track  || '';
-  document.getElementById('ns-date').value        = s.date   || '';
-  document.getElementById('ns-driver').value      = s.driver || '';
-  document.getElementById('ns-car').value         = s.car_id || '';
-  document.getElementById('ns-class').value       = s.cls    || '';
-  document.getElementById('ns-condition').value   = s.cond   || '';
-  document.getElementById('ns-engine').value      = s.engine || '';
-  document.getElementById('ns-gear').value        = s.gear   || '';
-  document.getElementById('ns-exhaust').value     = s.exhaust    || '';
-  document.getElementById('ns-injection').value   = s.injection  || '';
-  document.getElementById('ns-fp').value          = s.fp     || '';
-  document.getElementById('ns-wing').value        = s.wing   || '';
+  document.getElementById('ns-track').value = s.track  || '';
+  document.getElementById('ns-date').value = s.date   || '';
+  document.getElementById('ns-driver').value = s.driver || '';
+  document.getElementById('ns-car').value = s.car_id || '';
+  document.getElementById('ns-class').value = s.cls    || '';
+  document.getElementById('ns-condition').value = s.cond   || '';
+  document.getElementById('ns-engine').value = s.engine || '';
+  document.getElementById('ns-gear').value = s.gear   || '';
+  document.getElementById('ns-exhaust').value = s.exhaust    || '';
+  document.getElementById('ns-injection').value = s.injection  || '';
+  document.getElementById('ns-fp').value = s.fp     || '';
+  document.getElementById('ns-wing').value = s.wing   || '';
 
   // Restore corner inputs
   CORNER_NAMES.forEach(cn => {
@@ -668,8 +672,19 @@ function editSession() {
       document.getElementById('rr-jacobs').value  = s.corners.rr.jacobs  || '';
     }
     if (s.corners.lr) {
-      document.getElementById('lr-spacing').value = s.corners.lr.spacing || '';
-      document.getElementById('lr-radius').value  = s.corners.lr.radius  || '';
+    document.getElementById('lr-spacing').value = s.corners.lr.spacing || '';
+    }
+
+    // Restore bolt-on inputs
+    if (s.bolt_ons) {
+      document.getElementById('lr-radius').value     = s.bolt_ons.lr_radius     || '';
+      document.getElementById('rr-radius').value     = s.bolt_ons.rr_radius     || '';
+      document.getElementById('rr-jacobs').value     = s.bolt_ons.jacobs_ladder || '';
+      document.getElementById('front-panhard').value = s.bolt_ons.front_panhard || '';
+    } else if (s.corners) {
+      document.getElementById('lr-radius').value = (s.corners.lr && s.corners.lr.radius) || '';
+      document.getElementById('rr-radius').value = (s.corners.rr && s.corners.rr.radius) || '';
+      document.getElementById('rr-jacobs').value = (s.corners.rr && s.corners.rr.jacobs) || '';
     }
   }
 
@@ -737,12 +752,12 @@ function renderSessions() {
 
   data.forEach((s, i) => {
     const car = cars.find(c => c.id === s.car_id);
-    const ds  = s.date
+    const ds = s.date
       ? new Date(s.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
       : '';
 
     const finishes = (s.race_events || []).map(e => parseInt(e.finish)).filter(n => !isNaN(n));
-    const fchip    = finishes.length ? `<span class="chip ac">P${Math.min(...finishes)}</span>` : '';
+    const fchip = finishes.length ? `<span class="chip ac">P${Math.min(...finishes)}</span>` : '';
 
     const thumbs = (s.photos && s.photos.length)
       ? s.photos.slice(0, 3).map(p =>
@@ -807,8 +822,8 @@ function openDetail(id) {
       ['Air PSI',     c.psi],
       ['Ride Height', c.ride],
     ];
-    if (cn === 'lr') fields.push(['LR Spacing', c.spacing], ['LR Radius Rod', c.radius]);
-    if (cn === 'rr') fields.push(['Stagger', c.stagger], ['RR Spacing', c.spacing], ['RR Radius Rod', c.radius], ["Jacob's Ladder", c.jacobs]);
+    if (cn === 'lr') fields.push(['LR Spacing', c.spacing]);
+    if (cn === 'rr') fields.push(['Stagger', c.stagger], ['RR Spacing', c.spacing]);
 
     const content = rows(fields);
     if (!content) return '';
@@ -860,6 +875,16 @@ function openDetail(id) {
       ${s.driver ? `<span class="chip">${s.driver}</span>` : ''}
     </div>
     ${cornersH ? `<div class="detail-section"><h4>🔧 Chassis Setup</h4><div class="c-detail-grid">${cornersH}</div></div>` : ''}
+    ${(s.bolt_ons && (s.bolt_ons.lr_radius || s.bolt_ons.rr_radius || s.bolt_ons.jacobs_ladder || s.bolt_ons.front_panhard))
+      || (s.corners && ((s.corners.lr && s.corners.lr.radius) || (s.corners.rr && (s.corners.rr.radius || s.corners.rr.jacobs))))
+      ? `<div class="detail-section"><h4>🔩 Bolt-Ons</h4>
+        ${rows([
+          ['LR Radius Rod',  s.bolt_ons ? s.bolt_ons.lr_radius     : (s.corners.lr && s.corners.lr.radius)],
+          ['RR Radius Rod',  s.bolt_ons ? s.bolt_ons.rr_radius     : (s.corners.rr && s.corners.rr.radius)],
+          ["Jacob's Ladder", s.bolt_ons ? s.bolt_ons.jacobs_ladder : (s.corners.rr && s.corners.rr.jacobs)],
+          ['Front Panhard',  s.bolt_ons ? s.bolt_ons.front_panhard : ''],
+        ])}
+      </div>` : ''}
     ${(s.engine || s.gear || s.exhaust || s.injection || s.fp || s.wing)
       ? `<div class="detail-section"><h4>⚙️ Engine / Other</h4>
           ${rows([['Engine',s.engine],['Gearing',s.gear],['Exhaust',s.exhaust],['Injection',s.injection],['Fuel Pressure',s.fp],['Wing Angle',s.wing]])}
@@ -878,7 +903,7 @@ function openDetail(id) {
 function openPhotoUpload() {
   standalonePhotos = [];
   document.getElementById('pu-preview').innerHTML = '';
-  document.getElementById('pu-caption').value     = '';
+  document.getElementById('pu-caption').value = '';
 
   const sel = document.getElementById('pu-car');
   sel.innerHTML = '<option value="">— No car —</option>'
@@ -913,22 +938,22 @@ function renderStandalonePreview() {
 async function saveStandalonePhotos() {
   if (!standalonePhotos.length) { showToast('Add at least one photo!'); return; }
 
-  const carId   = document.getElementById('pu-car').value || null;
+  const carId = document.getElementById('pu-car').value || null;
   const caption = document.getElementById('pu-caption').value.trim();
 
   const payload = {
-    user_id:     CU.id,
-    car_id:      carId,
-    track:       caption || 'Standalone Photos',
-    date:        new Date().toISOString().split('T')[0],
-    photos:      standalonePhotos,
-    corners:     {},
+    user_id: CU.id,
+    car_id: carId,
+    track: caption || 'Standalone Photos',
+    date: new Date().toISOString().split('T')[0],
+    photos: standalonePhotos,
+    corners: {},
     race_events: [],
-    notes:       caption,
+    notes: caption,
   };
 
   try {
-    const res      = await sbInsert('sessions', payload);
+    const res = await sbInsert('sessions', payload);
     const inserted = Array.isArray(res) ? res[0] : res;
     sessions.unshift(inserted);
     closeModal('photo-upload-modal');
@@ -954,7 +979,7 @@ function openCarPhotos(carId) {
 
 function renderCarPhotosBody() {
   const carSessions = sessions.filter(s => s.car_id === currentCarPhotosId);
-  const allPhotos   = carSessions.flatMap(s =>
+  const allPhotos = carSessions.flatMap(s =>
     (s.photos || []).map(p => ({ src: p, track: s.track, date: s.date }))
   );
 
@@ -996,9 +1021,9 @@ function renderPhotos() {
   const grid = document.getElementById('photos-grid');
 
   // Build filter bar
-  const fb          = document.getElementById('photo-filter-bar');
-  fb.innerHTML      = '';
-  let photoFilter   = grid.dataset.filter || 'all';
+  const fb = document.getElementById('photo-filter-bar');
+  fb.innerHTML = '';
+  let photoFilter = grid.dataset.filter || 'all';
 
   const allChip = document.createElement('div');
   allChip.className = 'filter-chip' + (photoFilter === 'all' ? ' active' : '');
@@ -1022,7 +1047,7 @@ function renderPhotos() {
 
   // Filter sessions by car
   let filtered = sessions;
-  if      (photoFilter === 'standalone') filtered = sessions.filter(s => !s.car_id);
+  if (photoFilter === 'standalone') filtered = sessions.filter(s => !s.car_id);
   else if (photoFilter !== 'all')        filtered = sessions.filter(s => s.car_id === photoFilter);
 
   const allPhotos = filtered.flatMap(s => (s.photos || []));
@@ -1046,9 +1071,9 @@ function renderPhotos() {
    18. STATS — RENDER
 ──────────────────────────────────────── */
 function renderStats() {
-  const total    = sessions.length;
-  const photos   = sessions.reduce((n, s) => n + (s.photos ? s.photos.length : 0), 0);
-  const tracks   = [...new Set(sessions.map(s => s.track).filter(Boolean))];
+  const total = sessions.length;
+  const photos = sessions.reduce((n, s) => n + (s.photos ? s.photos.length : 0), 0);
+  const tracks = [...new Set(sessions.map(s => s.track).filter(Boolean))];
   const finishes = sessions.flatMap(s =>
     (s.race_events || []).map(e => parseInt(e.finish))
   ).filter(n => !isNaN(n));
