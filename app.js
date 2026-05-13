@@ -1131,3 +1131,116 @@ function showToast(msg) {
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2400);
 }
+
+
+/* ────────────────────────────────────────
+   21. SETTINGS MODAL
+──────────────────────────────────────── */
+function openSettingsModal() {
+  // Clear any previous messages
+  ['settings-email-error','settings-email-success','settings-pass-error','settings-pass-success'].forEach(id => {
+    const el = document.getElementById(id);
+    el.textContent = '';
+    el.classList.remove('show');
+  });
+  document.getElementById('settings-new-email').value = '';
+  document.getElementById('settings-new-pass').value = '';
+  document.getElementById('settings-confirm-pass').value = '';
+
+  // Sync toggle state
+  const isLight = document.body.classList.contains('light-mode');
+  const btn = document.getElementById('theme-toggle-btn');
+  if (isLight) btn.classList.add('on'); else btn.classList.remove('on');
+  document.getElementById('theme-sublabel').textContent = isLight ? 'Light Mode' : 'Dark Mode';
+  document.getElementById('theme-toggle-btn').querySelector('.theme-toggle-thumb').textContent = isLight ? '☀️' : '🌙';
+
+  openModal('settings-modal');
+}
+
+/* ── Theme Toggle ── */
+function toggleTheme() {
+  const body = document.body;
+  const isLight = body.classList.toggle('light-mode');
+  localStorage.setItem('pn_theme', isLight ? 'light' : 'dark');
+
+  const btn = document.getElementById('theme-toggle-btn');
+  btn.classList.toggle('on', isLight);
+  document.getElementById('theme-sublabel').textContent = isLight ? 'Light Mode' : 'Dark Mode';
+  btn.querySelector('.theme-toggle-thumb').textContent = isLight ? '☀️' : '🌙';
+}
+
+// Apply saved theme on load
+(function applyTheme() {
+  const saved = localStorage.getItem('pn_theme');
+  if (saved === 'light') {
+    document.body.classList.add('light-mode');
+  }
+})();
+
+/* ── Change Email ── */
+async function changeEmail() {
+  const newEmail = document.getElementById('settings-new-email').value.trim();
+  const errEl  = document.getElementById('settings-email-error');
+  const okEl   = document.getElementById('settings-email-success');
+  errEl.classList.remove('show');
+  okEl.classList.remove('show');
+
+  if (!newEmail) {
+    errEl.textContent = 'Enter a new email address.';
+    errEl.classList.add('show');
+    return;
+  }
+
+  try {
+    await sbFetch('/auth/v1/user', {
+      method: 'PUT',
+      body: JSON.stringify({ email: newEmail }),
+    });
+    okEl.textContent = 'Confirmation sent! Check your new email to confirm the change.';
+    okEl.classList.add('show');
+    document.getElementById('settings-new-email').value = '';
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.classList.add('show');
+  }
+}
+
+/* ── Change Password ── */
+async function changePassword() {
+  const newPass     = document.getElementById('settings-new-pass').value;
+  const confirmPass = document.getElementById('settings-confirm-pass').value;
+  const errEl  = document.getElementById('settings-pass-error');
+  const okEl   = document.getElementById('settings-pass-success');
+  errEl.classList.remove('show');
+  okEl.classList.remove('show');
+
+  if (!newPass || !confirmPass) {
+    errEl.textContent = 'Fill in both password fields.';
+    errEl.classList.add('show');
+    return;
+  }
+  if (newPass.length < 6) {
+    errEl.textContent = 'Password must be at least 6 characters.';
+    errEl.classList.add('show');
+    return;
+  }
+  if (newPass !== confirmPass) {
+    errEl.textContent = 'Passwords do not match.';
+    errEl.classList.add('show');
+    return;
+  }
+
+  try {
+    await sbFetch('/auth/v1/user', {
+      method: 'PUT',
+      body: JSON.stringify({ password: newPass }),
+    });
+    okEl.textContent = '✅ Password updated successfully!';
+    okEl.classList.add('show');
+    document.getElementById('settings-new-pass').value = '';
+    document.getElementById('settings-confirm-pass').value = '';
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.classList.add('show');
+  }
+}
