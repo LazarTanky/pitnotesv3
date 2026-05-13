@@ -102,7 +102,7 @@
             <button class="btn secondary" onclick="doLogout()">🚪 Sign Out</button>
             <div class="divider"></div>
             <p style="font-size:12px;color:var(--muted);text-align:center;line-height:1.7;">
-                Data syncs across all your devices.<br>
+                Version: 1.0.2<br>
                 Safari → Share → Add to Home Screen for app experience.
             </p>
         </div>
@@ -152,11 +152,11 @@
                         <div class="cf"><label>Block Size</label><input type="text" id="lf-block"></div>
                         <div class="cf"><label>Bar Size</label><input type="text" id="lf-bar"></div>
                         <div class="cf"><label>Preload</label><input type="text" id="lf-preload"></div>
-                        <div class="cf"><label>Shock Comp</label><input type="text" id="lf-comp"></div>
-                        <div class="cf"><label>Shock Reb</label><input type="text" id="lf-reb"></div>
-                        <div class="cf"><label>Tire Size</label><input type="text" id="lf-tire"></div>
-                        <div class="cf"><label>Air PSI</label><input type="text" id="lf-psi"></div>
                         <div class="cf"><label>Ride Height</label><input type="text" id="lf-ride"></div>
+                        <div class="cf"><label>Shock Reb.</label><input type="text" id="lf-reb"></div>
+                        <div class="cf"><label>Shock Comp</label><input type="text" id="lf-comp"></div>
+                        <div class="cf"><label>Air PSI</label><input type="text" id="lf-psi"></div>
+                        <div class="cf"><label>Tire Size</label><input type="text" id="lf-tire"></div>
                     </div>
 
                     <div class="corner-block">
@@ -164,59 +164,70 @@
                         <div class="cf"><label>Block Size</label><input type="text" id="rf-block"></div>
                         <div class="cf"><label>Bar Size</label><input type="text" id="rf-bar"></div>
                         <div class="cf"><label>Preload</label><input type="text" id="rf-preload"></div>
-                        <div class="cf"><label>Shock Comp.</label><input type="text" id="rf-comp"></div>
-                        <div class="cf"><label>Shock Reb.</label><input type="text" id="rf-reb"></div>
-                        <div class="cf"><label>Tire Size</label><input type="text" id="rf-tire"></div>
-                        <div class="cf"><label>Air PSI</label><input type="text" id="rf-psi"></div>
                         <div class="cf"><label>Ride Height</label><input type="text" id="rf-ride"></div>
+                        <div class="cf"><label>Shock Reb.</label><input type="text" id="rf-reb"></div>
+                        <div class="cf"><label>Shock Comp.</label><input type="text" id="rf-comp"></div>
+                        <div class="cf"><label>Air PSI</label><input type="text" id="rf-psi"></div>
+                        <div class="cf"><label>Tire Size</label><input type="text" id="rf-tire"></div>
                     </div>
                     <div class="corner-block">
                         <h4>LR</h4>
                         <div class="cf"><label>Block Size</label><input type="text" id="lr-block"></div>
                         <div class="cf"><label>Bar Size</label><input type="text" id="lr-bar"></div>
                         <div class="cf"><label>Preload</label><input type="text" id="lr-preload"></div>
-                        <div class="cf"><label>Shock Comp.</label><input type="text" id="lr-comp"></div>
+                        <div class="cf"><label>Ride Height</label><input type="text" id="lr-ride"></div>
                         <div class="cf"><label>Shock Reb.</label><input type="text" id="lr-reb"></div>
-                        <div class="cf"><label>Tire Size</label><input type="text" id="lr-tire"></div>
+                        <div class="cf"><label>Shock Comp.</label><input type="text" id="lr-comp"></div>
                         <div class="cf"><label>Air PSI</label><input type="text" id="lr-psi"></div>
                         <div class="cf"><label>LR Spacing</label><input type="text" id="lr-spacing"></div>
-                        <div class="cf">
-                            <label>LR Radius Rod</label>
-                            <select id="lr-radius" class="cf-select">
-                                <option value="">-</option>
-                                <option>1</option><option>2</option><option>3</option><option>4</option>
-                            </select>
-                        </div>
-                        <div class="cf"><label>Ride Height</label><input type="text" id="lr-ride"></div>
+                        <div class="cf"><label>Tire Size</label><input type="text" id="lr-tire"></div>
                     </div>
                     <div class="corner-block">
                         <h4>RR</h4>
                         <div class="cf"><label>Block Size</label><input type="text" id="rr-block"></div>
                         <div class="cf"><label>Bar Size</label><input type="text" id="rr-bar"></div>
                         <div class="cf"><label>Preload</label><input type="text" id="rr-preload"></div>
-                        <div class="cf"><label>Shock Comp.</label><input type="text" id="rr-comp"></div>
+                        <div class="cf"><label>Ride Height</label><input type="text" id="rr-ride"></div>
                         <div class="cf"><label>Shock Reb.</label><input type="text" id="rr-reb"></div>
-                        <div class="cf"><label>Tire Size</label><input type="text" id="rr-tire"></div>
+                        <div class="cf"><label>Shock Comp.</label><input type="text" id="rr-comp"></div>
                         <div class="cf"><label>Air PSI</label><input type="text" id="rr-psi"></div>
+                        <div class="cf"><label>Tire Size</label><input type="text" id="rr-tire"></div>
                         <div class="cf"><label>Stagger</label><input type="text" id="rr-stagger"></div>
                         <div class="cf"><label>RR Spacing</label><input type="text" id="rr-spacing"></div>
-                        <div class="cf">
-                            <label>RR Radius Rod</label>
-                            <select id="rr-radius" class="cf-select">
-                                <option value="">—</option>
-                                <option>1</option><option>2</option><option>3</option><option>4</option>
-                            </select>
-                        </div>
-                        <div class="cf">
-                            <label>Jacob's Ladder</label>
-                            <select id="rr-jacobs" class="cf-select">
-                                <option value="">-</option>
-                                <option>Top</option><option>Middle</option><option>Bottom</option>
-                            </select>
-                        </div>
-                        <div class="cf"><label>Ride Height</label><input type="text" id="rr-ride"></div>
                     </div>
             </div>
+
+            <div class="sec-label">🔩 Bolt-Ons</div>
+                <div class="g2">
+                    <div class="field">
+                        <label>LR Radius Rod</label>
+                        <select id="lr-radius" class="cf-select">
+                            <option value="">—</option>
+                            <option>1</option><option>2</option><option>3</option><option>4</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label>RR Radius Rod</label>
+                        <select id="rr-radius" class="cf-select">
+                            <option value="">—</option>
+                            <option>1</option><option>2</option><option>3</option><option>4</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label>Jacob's Ladder</label>
+                        <select id="rr-jacobs" class="cf-select">
+                            <option value="">—</option>
+                            <option>Top</option><option>Middle</option><option>Bottom</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label>Front Panhard</label>
+                        <select id="front-panhard" class="cf-select">
+                            <option value="">—</option>
+                            <option>Top</option><option>Bottom</option>
+                        </select>
+                    </div>
+                </div>
 
                     <div class="sec-label">⚙️ Engine / Other</div>
                     <div class="g2">
