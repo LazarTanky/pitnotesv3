@@ -26,15 +26,15 @@
    Change colors/fonts here to retheme the whole app.
 ──────────────────────────────────────── */
 :root {
-  --bg:      #0d0d0d;
+  --bg: #0d0d0d;
   --surface: #161616;
-  --card:    #1c1c1c;
-  --border:  #2a2a2a;
-  --accent:  #f07000;
+  --card: #1c1c1c;
+  --border: #2a2a2a;
+  --accent: #f07000;
   --accent2: #ffaa00;
-  --danger:  #e03030;
-  --text:    #e8e2d8;
-  --muted:   #7a7268;
+  --danger: #e03030;
+  --text: #e8e2d8;
+  --muted: #7a7268;
   --success: #3dbe6a;
   --fh: 'Barlow Condensed', sans-serif;
   --fb: 'Barlow', sans-serif;
@@ -843,8 +843,124 @@ textarea::placeholder { color: var(--muted); }
 
 
 /* ────────────────────────────────────────
-   17. ANIMATIONS
+   18. LIGHT MODE
 ──────────────────────────────────────── */
+body.light-mode {
+  --bg: #f0ede8;
+  --surface: #faf8f5;
+  --card: #ffffff;
+  --border: #ddd9d0;
+  --accent: #d45f00;
+  --accent2: #e07800;
+  --danger: #cc2020;
+  --text: #1a1714;
+  --muted: #8a8076;
+  --success: #2a9e50;
+}
+
+body.light-mode #login-screen {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(212,95,0,.10) 0%, transparent 70%),
+    var(--bg);
+}
+
+body.light-mode .topbar,
+body.light-mode .tabbar {
+  box-shadow: 0 1px 8px rgba(0,0,0,.08);
+}
+
+/* ────────────────────────────────────────
+   19. SETTINGS MODAL STYLES
+──────────────────────────────────────── */
+.settings-section {
+  padding: 4px 0 10px;
+}
+
+.settings-section-title {
+  font-family: var(--fh);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+}
+
+.settings-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.settings-sublabel {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.settings-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 6px 0 14px;
+}
+
+.success-msg {
+  background: rgba(61,190,106,.15);
+  border: 1px solid rgba(61,190,106,.4);
+  border-radius: 7px;
+  color: #3dbe6a;
+  font-size: 13px;
+  padding: 9px 12px;
+  margin-bottom: 12px;
+  display: none;
+}
+.success-msg.show { display: block; }
+
+/* Theme Toggle Switch */
+.theme-toggle {
+  position: relative;
+  width: 52px;
+  height: 28px;
+  background: var(--border);
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background .3s;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.theme-toggle.on {
+  background: var(--accent);
+}
+
+.theme-toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform .3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.3);
+}
+
+.theme-toggle.on .theme-toggle-thumb {
+  transform: translateX(24px);
+}
+
 @keyframes slideUp {
   from { transform: translateY(60px); opacity: 0; }
   to   { transform: translateY(0);    opacity: 1; }
