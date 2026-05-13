@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang ="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+        <meta name="theme-color" content="#0d0d0d">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+        <meta name="apple-mobile-web-app-title" content="PitNotes">
+        <title>PitNotes - Dirt Track Setup Logger</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="style.css">
+    </head>
+    <body>
+
+        
+        <div id="login-screen" class="screen active">
+            <div class="login-logo">
+                <span class="flag">🏁</span>
+                <h1>PitNotes</h1>
+                <p>Dirt Track Setup Logger</p>
+            </div>
+
+            <div id="login-form" class="login-card">
+                <h2>Sign In</h2>
+                <div id="login-error" class="error-msg"></div>
+                <div class="field">
+                    <label>Email</label>
+                    <input type="email" id="login-email" placeholder="you@email.com" autocomplete="email">
+                </div>
+                <div class="field">
+                    <label>Password</label>
+                    <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password">
+                </div>
+                <button class="btn" onclick="doLogin()">🔓 Sign In</button>
+                <div class="login-switch">No account? <a onclick="showRegister()">Create one</a></div>
+            </div>
+
+            <div id="register-form" class="login-card" style="display: none;">
+                <h2>Create Account</h2>
+                <div id="reg-error" class="eroor-msg"></div>
+                <div class="field">
+                    <label>Email</label>
+                    <input type="email" id="reg-email" placeholder="you@email.com">
+                </div>
+                <div class="field">
+                    <label>Password</label>
+                    <input type="password" id="reg-pass" placeholder="min 6 chars">
+                </div>
+                <button class="btn" onclick="doRegister()">🏁 Create Account</button>
+                <div class="login-switch">Have an account? <a onclick="showLogin()">Sign in</a></div>
+            </div>
+        </div>
+       <div id="app-screen" class="screen">
+        <div class="topbar">
+            <div class="topbar-logo">🏁 PitNotes</div>
+            <div style="display: flex;align-items: center;gap: 10px;">
+                <div class="car-badge" id="active-car-badge" onclick="showPage('cars')">All Cars</div>
+                <button class="icon-btn" onclick="showPage('profile')">👤</button>
+            </div>
+        </div>
+
+        <div id="page-sessions" class="page active">
+            <div class="section-head">
+                <h2>Sessions</h2>
+                <button class="btn sm" onclick="openNewSession()">+ New</button>
+            </div>
+            <div class="filter-bar" id="filter-bar"></div>
+            <div id="sessions-list" class="sessions-list"></div>
+        </div>
+        <div id="page-cars" class="page">
+            <div class="section-head">
+                <h2>My Cars</h2>
+                <button class="btn sm" onclick="openCarModal()">+ Add Car</button>
+            </div>
+            <div id="cars-list" class="cars-list"></div>
+        </div>
+        <div id="page-photos" class="page">
+            <div class="section-head">
+                <h2>Photos</h2>
+                <button class="btn sm" onclick="openPhotoUpload()">+ Add</button>
+            </div>
+            <div class="filter-bar" id="photo-filter-bar"></div>
+            <div id="photos-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;"></div>
+        </div>
+        <div id="page-stats" class="page">
+            <div class="section-head"><h2>Stats</h2></div>
+            <div class="stats-grid" id="stats-cards"></div>
+            <div class="detail-section"><h4>📍 Tracks</h4><div id="tracks-list"></div></div>
+            <div class="detail-section"><h4>🏆 Best Finish</h4><div id="best-finish"></div></div>
+        </div>
+        <div id="page-profile" class="page">
+            <div class="section-head"><h2>Profile</h2></div>
+            <div class="profile-header">
+                <div class="avatar" id="profile-avatar">?</div>
+                <div class="profile-info">
+                    <h3 id="profile-email-display">—</h3>
+                    <p>Logged in via Supabase</p>
+                </div>
+            </div>
+            <button class="btn secondary" onclick="doLogout()">🚪 Sign Out</button>
+            <div class="divider"></div>
+            <p style="font-size:12px;color:var(--muted);text-align:center;line-height:1.7;">
+                Data syncs across all your devices.<br>
+                Safari → Share → Add to Home Screen for app experience.
+            </p>
+        </div>
+        <nav class="tabbar">
+            <button class="tab active" onclick="showPage(sessions)" id="tab-sessions"><span class="ti">📋</span>Sessions</button>
+            <button class="tab" onclick="showPage('cars')" id="tab-cars"><span class="ti">🏎</span>Cars</button>
+            <button class="tab" onclick="showPage('photos')" id="tab-photos"><span class="ti">📷</span>Photos</button>
+            <button class="tab" onclick="showPage('stats')" id="tab-stats"><span class="ti">📊</span>Stats</button>
+            <button class="tab" onclick="showPage('profile')" id="tab-profile"><span class="ti">👤</span>Profile</button>
+        </nav>
+       </div>
+
+       <div class="modal-overlay" id="ns-modal">
+            <div class="modal">
+                <div class="modal-handle"></div>
+                <div class="modal-head">
+                    <h3 id="ns-title">New Session</h3>
+                    <button class="icon-btn" onclick="closeModal('ns-modal')">✕</button>
+                </div>
+
+                <div class="sec-label">📋 Event Info</div>
+                <div class="g2">
+                    <div class="field"><label>Track / Size</label><input type="text" id="ns-track" placeholder="e.g. Eldora ½mi"></div>
+                    <div class="field"><label>Date</label><input type="date" id="ns-date"></div>
+                    <div class="field"><label>Driver</label><input type="text" id="ns-driver" placeholder="Driver name"></div>
+                    <div class="field"><label>Assign to Car</label><select id="ns-car"><option value="">— No car —</option></select></div>
+                    <div class="field"><label>Class</label><input type="text" id="ns-class" placeholder="Late Model"></div>
+                    <div class="field">
+                        <label>Track Condition</label>
+                        <select id="ns-condition">
+                            <option value="">Select…</option>
+                            <option>Tacky</option>
+                            <option>Slick</option>
+                            <option>Dry/Slick</option>
+                            <option>Wet/Muddy</option>
+                            <option>Cushion</option>
+                            <option>Buffed Off</option>
+                            <option>Rubbered Up</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="sec-label">🔧 Chassis Setup</div>
+                <div class="corner-grid">
+
+                    <div class="corner-block">
+                        <h4>LF</h4>
+                        <div class="cf"><label>Block Size</label><input type="text" id="lf-block"></div>
+                        <div class="cf"><label>Bar Size</label><input type="text" id="lf-bar"></div>
+                        <div class="cf"><label>Preload</label><input type="text" id="lf-preload"></div>
+                        <div class="cf"><label>Shock Comp</label><input type="text" id="lf-comp"></div>
+                        <div class="cf"><label>Shock Reb</label><input type="text" id="lf-reb"></div>
+                        <div class="cf"><label>Tire Size</label><input type="text" id="lf-tire"></div>
+                        <div class="cf"><label>Air PSI</label><input type="text" id="lf-psi"></div>
+                        <div class="cf"><label>Ride Height</label><input type="text" id="lf-ride"></div>
+                    </div>
+
+                    <div class="corner-block">
+                        <h4>RF</h4>
+                        <div class="cf"><label>Block Size</label><input type="text" id="rf-block"></div>
+                        <div class="cf"><label>Bar Size</label><input type="text" id="rf-bar"></div>
+                        <div class="cf"><label>Preload</label><input type="text" id="rf-preload"></div>
+                        <div class="cf"><label>Shock Comp.</label><input type="text" id="rf-comp"></div>
+                        <div class="cf"><label>Shock Reb.</label><input type="text" id="rf-reb"></div>
+                        <div class="cf"><label>Tire Size</label><input type="text" id="rf-tire"></div>
+                        <div class="cf"><label>Air PSI</label><input type="text" id="rf-psi"></div>
+                        <div class="cf"><label>Ride Height</label><input type="text" id="rf-ride"></div>
+                    </div>
+                    <div class="corner-block">
+                        <h4>LR</h4>
+                        <div class="cf"><label>Block Size</label><input type="text" id="lr-block"></div>
+                        <div class="cf"><label>Bar Size</label><input type="text" id="lr-bar"></div>
+                        <div class="cf"><label>Preload</label><input type="text" id="lr-preload"></div>
+                        <div class="cf"><label>Shock Comp.</label><input type="text" id="lr-comp"></div>
+                        <div class="cf"><label>Shock Reb.</label><input type="text" id="lr-reb"></div>
+                        <div class="cf"><label>Tire Size</label><input type="text" id="lr-tire"></div>
+                        <div class="cf"><label>Air PSI</label><input type="text" id="lr-psi"></div>
+                        <div class="cf"><label>LR Spacing</label><input type="text" id="lr-spacing"></div>
+                        <div class="cf">
+                            <label>LR Radius Rod</label>
+                            <select id="lr-radius" class="cf-select">
+                                <option value="">-</option>
+                                <option>1</option><option>2</option><option>3</option><option>4</option>
+                            </select>
+                        </div>
+                        <div class="cf"><label>Ride Height</label><input type="text" id="lr-ride"></div>
+                    </div>
+                    <div class="corner-block">
+                        <h4>RR</h4>
+                        <div class="cf"><label>Block Size</label><input type="text" id="rr-block"></div>
+                        <div class="cf"><label>Bar Size</label><input type="text" id="rr-bar"></div>
+                        <div class="cf"><label>Preload</label><input type="text" id="rr-preload"></div>
+                        <div class="cf"><label>Shock Comp.</label><input type="text" id="rr-comp"></div>
+                        <div class="cf"><label>Shock Reb.</label><input type="text" id="rr-reb"></div>
+                        <div class="cf"><label>Tire Size</label><input type="text" id="rr-tire"></div>
+                        <div class="cf"><label>Air PSI</label><input type="text" id="rr-psi"></div>
+                        <div class="cf"><label>Stagger</label><input type="text" id="rr-stagger"></div>
+                        <div class="cf"><label>RR Spacing</label><input type="text" id="rr-spacing"></div>
+                        <div class="cf">
+                            <label>RR Radius Rod</label>
+                            <select id="rr-radius" class="cf-select">
+                                <option value="">—</option>
+                                <option>1</option><option>2</option><option>3</option><option>4</option>
+                            </select>
+                        </div>
+                        <div class="cf">
+                            <label>Jacob's Ladder</label>
+                            <select id="rr-jacobs" class="cf-select">
+                                <option value="">-</option>
+                                <option>Top</option><option>Middle</option><option>Bottom</option>
+                            </select>
+                        </div>
+                        <div class="cf"><label>Ride Height</label><input type="text" id="rr-ride"></div>
+                    </div>
+            </div>
+
+                    <div class="sec-label">⚙️ Engine / Other</div>
+                    <div class="g2">
+                        <div class="field"><label>Engine</label><input type="text" id="ns-engine" placeholder="e.g. 604 Crate"></div>
+                        <div class="field"><label>Gearing</label><input type="text" id="ns-gear" placeholder="e.g. 5.38"></div>
+                        <div class="field"><label>Exhaust</label><input type="text" id="ns-exhaust"></div>
+                        <div class="field"><label>Injection</label><input type="text" id="ns-injection"></div>
+                        <div class="field"><label>Fuel Pressure</label><input type="text" id="ns-fp" placeholder="psi"></div>
+                        <div class="feild"><label>Wing Angle</label><input type="text" id="ns-wing" placeholder="degrees"></div>
+                    </div>
+        
+                    <div class="sec-label">🏁 Race Events</div>
+                    <div id="re-container"></div>
+                    <div style="display: flex;justify-content: flex-end;margin: 6px 0 2px;">
+                        <button class="btn ghost sm" onclick="addRaceEvent()">+ Add Race Event</button>
+                    </div>
+
+                    <div class="sec-label">📝 Notes</div>
+                    <div class="field">
+                        <textarea id="ns-notes" placeholder="What worked, what didn't, changes between sessions.."></textarea>
+                    </div>
+
+                    <div class="sec-label">📸 Photos</div>
+                    <div class="photo-upload-zone" onclick="document.getElementById('photo-input').click()">
+                        <div style="font-size: 26px;margin-bottom: 5px;">📸</div>
+                        <p style="font-size: 12px;color: var(--muted);">Tap to add photos from camera or library</p>
+                    </div>
+                    <input type="file" id="photo-input" accept="image/*" multiple style="display: none;" onchange="handlePhotos(event)">
+                    <div class="preview-grid" id="photo-preview"></div>
+
+                    <div style="margin-top: 20px;">
+                        <button class="btn" onclick="saveSession()">💾 Save Session</button>
+                    </div>
+                </div>    
+            </div>
+
+            <div class="modal-overlay" id="detail-modal">
+                <div class="modal">
+                    <div class="modal-handle"></div>
+                    <div class="modal-head">
+                        <h3 id="detail-title">Session</h3>
+                        <button class="icon-btn" onclick="closeModal('detail-modal')">x</button>
+                    </div>
+                    <div id="detail-body"></div>
+                    <div style="margin-top: 14px;display: flex;gap: 8px;">
+                        <button class="btn ghost sm" onclick="editSession()">✏️ Edit</button>
+                        <button class="btn danger sm" onclick="deleteSession()">🗑 Delete</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-overlay" id="car-modal">
+                <div class="modal">
+                    <div class="modal-handle"></div>
+                    <div class="modal-head">
+                        <h3 id="car-modal-title">Add Car</h3>
+                        <button class="icon-btn" onclick="closeModal('car-modal')">x</button>
+                    </div>
+                    <div class="field"><label>Car Number</label><input type="text" id="cm-num" placeholder="e.g. 14X"></div>
+                    <div class="field"><label>Car Name / Chassis</label><input type="text" id="cm-name" placeholder="e.g. Longhorn Chassis"></div>
+                    <div class="field"><label>Class</label><input type="text" id="cm-class" placeholder="e.g. Super Late Model"></div>
+                    <div class="field"><label>Notes</label><textarea id="cm-notes" placeholder="Any additional info.."></textarea></div>
+                    <button class="btn" onclick="saveCar()">💾 Save Car</button>
+                </div>
+            </div>
+
+            <div class="modal-overlay" id="photo-upload-modal">
+                <div class="modal">
+                    <div class="modal-handle"></div>
+                    <div class="modal-head">
+                        <h3>Add Photos</h3>
+                        <button class="icon-btn" onclick="closeModal('photo-upload-modal')">x</button>
+                    </div>
+                    <div class="field"><label>Attach to Car (optional)</label><select id="pu-car"><option value="">- No Car -</option></select></div>
+                    <div class="field"><label>Caption / Notes</label><input type="text" id="pu-caption" placeholder="e.g. Race night setup, before adjustments"></div>
+                    <div class="photo-upload-zone" onclick="document.getElementById('pu-input').click()">
+                        <div style="font-size: 26px;margin-bottom: 5px;">📸</div>
+                        <p style="font-size: 12px;color:var(--muted);">Tap to add photos from camera or libary</p>
+                    </div>
+                    <input type="file" id="pu-input" accept="image/*" multiple style="display: none;" onchange="handleStandalonePhotos(event)">
+                    <div class="preview-grid" id="pu-preview"></div>
+                    <div style="margin-top: 20px;">
+                        <button class="btn" onclick="saveStandalonePhotos()">💾 Save Photos</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-overlay" id="car-photos-modal">
+                <div class="modal">
+                    <div class="modal-handle"></div>
+                    <div class="modal-head">
+                        <h3 id="car-photos-title">Car Photos</h3>
+                        <button class="icon-btn" onclick="closeModal('car-photos-modal')">✕</button>
+                    </div>
+                    <div id="car-photos-body"></div>
+                    <div style="margin-top:14px;">
+                        <button class="btn ghost sm" onclick="addCarPhoto()">+ Add Photo</button>
+                    </div>
+                    <input type="file" id="car-photo-input" accept="image/*" multiple style="display:none;" onchange="handleCarPhotoAdd(event)">
+                </div>
+            </div>
+
+            <div id="lightbox" class="lightbox">
+                <button class="lightbox-close" onclick="closeLightbox()">x</button>
+                <img id="lightbox-img" src="" alt="">
+            </div>
+
+            <div class="toast" id="toast"></div>
+
+            <script src="app.js"></script>
+    </body>
+</html>
