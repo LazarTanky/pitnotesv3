@@ -1,977 +1,1247 @@
 /* ════════════════════════════════════════
-   style.css — PitNotes
+   app.js — PitNotes
    Sections:
-     1. CSS Variables (tokens)
-     2. Reset & Base
-     3. Login Screen
-     4. Form Fields
-     5. Buttons
-     6. App Shell (topbar, tabbar, pages)
-     7. Modals
-     8. Session Cards & Filters
-     9. Corner Setup Grid
-    10. Race Events (tire table)
-    11. Photos
-    12. Cars List
-    13. Stats & Profile
-    14. Detail View
-    15. Lightbox & Toast
-    16. Utility Classes
-    17. Animations
+     1.  Config & Supabase helpers
+     2.  Auth state (tokens)
+     3.  App state
+     4.  Startup
+     5.  Auth — login / register / logout
+     6.  Navigation
+     7.  Data loader
+     8.  Cars — CRUD + render
+     9.  Sessions — form helpers
+    10.  Sessions — race events
+    11.  Sessions — photos (session-attached)
+    12.  Sessions — save / edit / delete
+    13.  Sessions — render list
+    14.  Sessions — detail view
+    15.  Photos page — standalone upload
+    16.  Photos page — car photos modal
+    17.  Photos page — render grid
+    18.  Stats — render
+    19.  Modals & lightbox
+    20.  Toast
 ════════════════════════════════════════ */
 
 
 /* ────────────────────────────────────────
-   1. CSS VARIABLES (DESIGN TOKENS)
-   Change colors/fonts here to retheme the whole app.
+   1. CONFIG & SUPABASE HELPERS
 ──────────────────────────────────────── */
-:root {
-  --bg: #0d0d0d;
-  --surface: #161616;
-  --card: #1c1c1c;
-  --border: #2a2a2a;
-  --accent: #f07000;
-  --accent2: #ffaa00;
-  --danger: #e03030;
-  --text: #e8e2d8;
-  --muted: #7a7268;
-  --success: #3dbe6a;
-  --fh: 'Barlow Condensed', sans-serif;
-  --fb: 'Barlow', sans-serif;
+const SUPA_URL = 'https://uipngbwdcojorjzyxjmg.supabase.co';
+const SUPA_KEY = 'sb_publishable_L6NUbZRyjkL-TKpiSSxUzA_RErMvX4t';
+
+async function sbFetch(path, opts = {}) {
+  const headers = {
+    'apikey': SUPA_KEY,
+    'Content-Type': 'application/json',
+    ...opts.headers,
+  };
+  if (ACCESS_TOKEN) headers['Authorization'] = 'Bearer ' + ACCESS_TOKEN;
+
+  const res  = await fetch(SUPA_URL + path, { ...opts, headers });
+  const text = await res.text();
+
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch (e) { data = text; }
+
+  if (!res.ok) {
+    throw new Error(
+      (data && (data.message || data.error_description || data.msg)) || 'Request failed'
+    );
+  }
+  return data;
+}
+
+// Auth endpoint wrapper
+function sbAuth(path, body) {
+  return sbFetch('/auth/v1' + path, { method: 'POST', body: JSON.stringify(body) });
+}
+
+// REST helpers — all use RLS so user_id filtering is automatic
+function sbSelect(table) {
+  return sbFetch(`/rest/v1/${table}?select=*&order=created_at.desc`, {
+    headers: { 'Prefer': 'return=representation' },
+  });
+}
+
+function sbInsert(table, body) {
+  return sbFetch(`/rest/v1/${table}`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+    headers: { 'Prefer': 'return=representation' },
+  });
+}
+
+function sbUpdate(table, id, body) {
+  return sbFetch(`/rest/v1/${table}?id=eq.${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+    headers: { 'Prefer': 'return=representation' },
+  });
+}
+
+function sbDelete(table, id) {
+  return sbFetch(`/rest/v1/${table}?id=eq.${id}`, { method: 'DELETE' });
 }
 
 
 /* ────────────────────────────────────────
-   2. RESET & BASE
+   2. AUTH STATE — TOKEN PERSISTENCE
 ──────────────────────────────────────── */
-* { box-sizing: border-box; margin: 0; padding: 0; }
+let ACCESS_TOKEN  = null;
+let REFRESH_TOKEN = null;
+let CU = null; // current user object
 
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--fb);
-  font-size: 15px;
-  min-height: 100vh;
-  overflow-x: hidden;
+function saveTokens(access, refresh, user) {
+  ACCESS_TOKEN  = access;
+  REFRESH_TOKEN = refresh;
+  CU = user;
+  localStorage.setItem('pn_token', JSON.stringify({ access, refresh, user }));
 }
 
-/* Subtle noise texture overlay */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
-  pointer-events: none;
-  z-index: 9999;
-  opacity: .5;
+function clearTokens() {
+  ACCESS_TOKEN  = null;
+  REFRESH_TOKEN = null;
+  CU = null;
+  localStorage.removeItem('pn_token');
 }
 
-input::placeholder,
-textarea::placeholder { color: var(--muted); }
-
-
-/* ────────────────────────────────────────
-   3. LOGIN SCREEN
-──────────────────────────────────────── */
-.screen { display: none; min-height: 100vh; flex-direction: column; }
-.screen.active { display: flex; }
-
-#login-screen {
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background:
-    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(240,112,0,.12) 0%, transparent 70%),
-    var(--bg);
-}
-
-.login-logo {
-  text-align: center;
-  margin-bottom: 32px;
-}
-.login-logo .flag {
-  font-size: 48px;
-  line-height: 1;
-  display: block;
-  margin-bottom: 8px;
-  filter: drop-shadow(0 0 20px rgba(240,112,0,.5));
-}
-.login-logo h1 {
-  font-family: var(--fh);
-  font-size: 44px;
-  font-weight: 800;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-.login-logo p {
-  color: var(--muted);
-  font-size: 12px;
-  letter-spacing: 3px;
-  text-transform: uppercase;
-  margin-top: 4px;
-}
-
-.login-card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 26px 22px;
-  width: 100%;
-  max-width: 400px;
-  box-shadow: 0 8px 40px rgba(0,0,0,.6);
-}
-.login-card h2 {
-  font-family: var(--fh);
-  font-weight: 700;
-  font-size: 20px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  margin-bottom: 18px;
-}
-
-.error-msg {
-  background: rgba(224,48,48,.15);
-  border: 1px solid rgba(224,48,48,.4);
-  border-radius: 7px;
-  color: #f08080;
-  font-size: 13px;
-  padding: 9px 12px;
-  margin-bottom: 12px;
-  display: none;
-}
-.error-msg.show { display: block; }
-
-.login-switch {
-  text-align: center;
-  margin-top: 14px;
-  font-size: 13px;
-  color: var(--muted);
-}
-.login-switch a { color: var(--accent); cursor: pointer; }
-
-
-/* ────────────────────────────────────────
-   4. FORM FIELDS
-   Used in modals and login.
-──────────────────────────────────────── */
-.field { margin-bottom: 12px; }
-.field label {
-  display: block;
-  font-size: 11px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 4px;
-}
-.field input,
-.field textarea,
-.field select {
-  width: 100%;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  color: var(--text);
-  font-family: var(--fb);
-  font-size: 14px;
-  padding: 9px 12px;
-  outline: none;
-  transition: border-color .2s;
-  -webkit-appearance: none;
-}
-.field input:focus,
-.field textarea:focus,
-.field select:focus { border-color: var(--accent); }
-.field textarea { resize: vertical; min-height: 70px; }
-.field select { cursor: pointer; }
-
-/* Small corner-block inputs (chassis setup) */
-.cf { margin-bottom: 7px; }
-.cf label {
-  display: block;
-  font-size: 10px;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 2px;
-}
-.cf input,
-.cf-select {
-  width: 100%;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  color: var(--text);
-  font-size: 13px;
-  padding: 6px 8px;
-  outline: none;
-  transition: border-color .2s;
-  -webkit-appearance: none;
-}
-.cf input:focus,
-.cf-select:focus { border-color: var(--accent); }
-
-
-/* ────────────────────────────────────────
-   5. BUTTONS
-──────────────────────────────────────── */
-.btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: 100%;
-  background: var(--accent);
-  color: #000;
-  border: none;
-  border-radius: 8px;
-  font-family: var(--fh);
-  font-size: 16px;
-  font-weight: 800;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  padding: 11px 18px;
-  cursor: pointer;
-  transition: background .2s, transform .1s;
-}
-.btn:active  { transform: scale(.97); }
-.btn:hover   { background: var(--accent2); }
-
-.btn.secondary {
-  background: var(--surface);
-  color: var(--text);
-  border: 1px solid var(--border);
-  font-size: 13px;
-}
-.btn.secondary:hover { border-color: var(--accent); }
-
-.btn.danger       { background: var(--danger); color: #fff; }
-.btn.sm           { padding: 6px 14px; font-size: 13px; width: auto; }
-.btn.ghost        { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
-.btn.ghost:hover  { background: rgba(240,112,0,.1); }
-
-.icon-btn {
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 19px;
-  padding: 4px;
-  line-height: 1;
+function loadTokens() {
+  try {
+    const d = JSON.parse(localStorage.getItem('pn_token') || 'null');
+    if (d) {
+      ACCESS_TOKEN  = d.access;
+      REFRESH_TOKEN = d.refresh;
+      CU = d.user;
+      return true;
+    }
+  } catch (e) { /* corrupted storage — just ignore */ }
+  return false;
 }
 
 
 /* ────────────────────────────────────────
-   6. APP SHELL — TOPBAR, TABBAR, PAGES
+   3. APP STATE
 ──────────────────────────────────────── */
-#app-screen { flex-direction: column; }
+let cars = [];
+let sessions = [];
+let ACI = null;   // active car id (filter)
+let editSid = null;   // session being edited
+let detailId = null;  // session open in detail modal
+let editCid = null;   // car being edited
 
-.topbar {
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  padding: 0 14px;
-  height: 52px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  flex-shrink: 0;
-}
-.topbar-logo {
-  font-family: var(--fh);
-  font-size: 24px;
-  font-weight: 800;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  color: var(--accent);
-}
+let pendingPhotos = [];  // base64 photos staged for new/edit session
+let reCount = 0;   // race-event counter (used to generate unique input IDs)
 
-.car-badge {
-  background: rgba(240,112,0,.15);
-  border: 1px solid rgba(240,112,0,.3);
-  border-radius: 20px;
-  font-size: 11px;
-  color: var(--accent);
-  padding: 3px 10px;
-  font-family: var(--fh);
-  font-weight: 700;
-  letter-spacing: 1px;
-  cursor: pointer;
-}
-
-.tabbar {
-  background: var(--surface);
-  border-top: 1px solid var(--border);
-  display: flex;
-  position: fixed;
-  bottom: 0; left: 0; right: 0;
-  z-index: 100;
-  height: 58px;
-}
-.tab {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  font-family: var(--fh);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  transition: color .2s;
-  padding-bottom: 2px;
-}
-.tab .ti   { font-size: 20px; line-height: 1; }
-.tab.active { color: var(--accent); }
-
-.page              { display: none; flex: 1; overflow-y: auto; padding: 14px 14px 76px; }
-.page.active       { display: block; }
-
-.section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-.section-head h2 {
-  font-family: var(--fh);
-  font-size: 26px;
-  font-weight: 800;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-}
-
-.divider { height: 1px; background: var(--border); margin: 12px 0; }
+let standalonePhotos = [];   // staged for standalone photo upload
+let currentCarPhotosId = null; // car whose photo modal is open
 
 
 /* ────────────────────────────────────────
-   7. MODALS
+   4. STARTUP
 ──────────────────────────────────────── */
-.modal-overlay {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,.8);
-  z-index: 200;
-  align-items: flex-end;
-  justify-content: center;
-}
-.modal-overlay.open { display: flex; }
+window.addEventListener('DOMContentLoaded', () => {
+  showLogin();
 
-.modal {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 16px 16px 0 0;
-  width: 100%;
-  max-width: 640px;
-  max-height: 94vh;
-  overflow-y: auto;
-  padding: 20px 16px 40px;
-  animation: slideUp .25s ease;
-}
-.modal-handle {
-  width: 38px;
-  height: 4px;
-  background: var(--border);
-  border-radius: 2px;
-  margin: 0 auto 16px;
-}
-.modal-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-.modal-head h3 {
-  font-family: var(--fh);
-  font-size: 22px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 1px;
+  // Try to silently restore session from localStorage
+  if (loadTokens()) {
+    sbAuth('/token?grant_type=refresh_token', { refresh_token: REFRESH_TOKEN })
+      .then(res => {
+        saveTokens(res.access_token, res.refresh_token, res.user);
+        loginSuccess();
+      })
+      .catch(() => clearTokens());
+  }
+});
+
+
+/* ────────────────────────────────────────
+   5. AUTH — LOGIN / REGISTER / LOGOUT
+──────────────────────────────────────── */
+function showLogin() {
+  document.getElementById('login-form').style.display = '';
+  document.getElementById('register-form').style.display = 'none';
 }
 
-/* Section label inside modals */
-.sec-label {
-  font-size: 11px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--accent);
-  margin: 14px 0 8px;
-  font-family: var(--fh);
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+function showRegister() {
+  document.getElementById('login-form').style.display = 'none';
+  document.getElementById('register-form').style.display = '';
 }
-.sec-label::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border);
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass = document.getElementById('login-pass').value;
+  const err = document.getElementById('login-error');
+
+  if (!email || !pass) {
+    err.textContent = 'Fill in all fields.';
+    err.classList.add('show');
+    return;
+  }
+
+  try {
+    const res = await sbAuth('/token?grant_type=password', { email, password: pass });
+    saveTokens(res.access_token, res.refresh_token, res.user);
+    err.classList.remove('show');
+    loginSuccess();
+  } catch (e) {
+    err.textContent = e.message;
+    err.classList.add('show');
+  }
+}
+
+async function doRegister() {
+  const email = document.getElementById('reg-email').value.trim();
+  const pass = document.getElementById('reg-pass').value;
+  const err = document.getElementById('reg-error');
+
+  if (!email || !pass) { err.textContent = 'All fields required.'; err.classList.add('show'); return; }
+  if (pass.length < 6) { err.textContent = 'Password min 6 chars.'; err.classList.add('show'); return; }
+
+  try {
+    await sbAuth('/signup', { email, password: pass });
+    err.classList.remove('show');
+    showToast('Account created! Check your email to confirm, then sign in.');
+    showLogin();
+  } catch (e) {
+    err.textContent = e.message;
+    err.classList.add('show');
+  }
+}
+
+function doLogout() {
+  clearTokens();
+  document.getElementById('app-screen').classList.remove('active');
+  document.getElementById('login-screen').classList.add('active');
+  showLogin();
+}
+
+function loginSuccess() {
+  document.getElementById('login-screen').classList.remove('active');
+  document.getElementById('app-screen').classList.add('active');
+
+  const em = CU.email || '';
+  document.getElementById('profile-avatar').textContent = em.charAt(0).toUpperCase();
+  document.getElementById('profile-email-display').textContent = em;
+
+  loadAll();
+  showPage('sessions');
 }
 
 
 /* ────────────────────────────────────────
-   8. SESSION CARDS & FILTER BAR
+   6. NAVIGATION
 ──────────────────────────────────────── */
-.sessions-list { display: flex; flex-direction: column; gap: 9px; }
-
-.session-card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--accent);
-  border-radius: 10px;
-  padding: 12px;
-  cursor: pointer;
-  transition: background .2s;
-  animation: fadeUp .3s ease both;
-}
-.session-card:hover { background: var(--border); }
-
-.card-track {
-  font-family: var(--fh);
-  font-size: 20px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-.card-meta {
-  display: flex;
-  gap: 7px;
-  flex-wrap: wrap;
-  margin-top: 5px;
-}
-.card-note {
-  font-size: 12px;
-  color: var(--muted);
-  margin-top: 5px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Chips (small tags on cards) */
-.chip {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  font-size: 11px;
-  color: var(--muted);
-  padding: 2px 8px;
-}
-.chip.ac  { background: rgba(240,112,0,.15); border-color: rgba(240,112,0,.3);   color: var(--accent);  }
-.chip.car { background: rgba(255,170,0,.1);  border-color: rgba(255,170,0,.3);   color: var(--accent2); }
-
-/* Filter bar (scrollable row of chips) */
-.filter-bar {
-  display: flex;
-  gap: 7px;
-  overflow-x: auto;
-  padding-bottom: 6px;
-  margin-bottom: 10px;
-  -webkit-overflow-scrolling: touch;
-}
-.filter-bar::-webkit-scrollbar { display: none; }
-
-.filter-chip {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  font-size: 11px;
-  color: var(--muted);
-  padding: 4px 12px;
-  cursor: pointer;
-  white-space: nowrap;
-  font-family: var(--fh);
-  font-weight: 600;
-  flex-shrink: 0;
-}
-.filter-chip.active {
-  background: rgba(240,112,0,.15);
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-/* Photo thumbnails on session cards */
-.thumb-row { display: flex; gap: 4px; margin-top: 7px; }
-.photo-thumb {
-  width: 48px;
-  height: 48px;
-  border-radius: 5px;
-  object-fit: cover;
-  border: 1px solid var(--border);
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t  => t.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.getElementById('tab-'  + name).classList.add('active');
 }
 
 
 /* ────────────────────────────────────────
-   9. CORNER SETUP GRID
+   7. DATA LOADER
 ──────────────────────────────────────── */
-.corner-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+async function loadAll() {
+  try {
+    const [c, s] = await Promise.all([
+      fetch(`${SUPA_URL}/rest/v1/cars?select=*&order=created_at.desc`, {
+        headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + ACCESS_TOKEN },
+      }).then(r => r.json()),
+      fetch(`${SUPA_URL}/rest/v1/sessions?select=*&order=created_at.desc`, {
+        headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + ACCESS_TOKEN },
+      }).then(r => r.json()),
+    ]);
 
-.corner-block {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 10px;
-}
-.corner-block h4 {
-  font-family: var(--fh);
-  font-size: 18px;
-  font-weight: 800;
-  text-transform: uppercase;
-  color: var(--accent);
-  margin-bottom: 8px;
-  letter-spacing: 1px;
+    if (c.code || s.code) throw new Error(c.message || s.message || 'DB error');
+
+    cars = Array.isArray(c) ? c : [];
+    sessions = Array.isArray(s) ? s : [];
+  } catch (e) {
+    console.error('loadAll error:', e);
+    cars = [];
+    sessions = [];
+    showToast('Load error: ' + e.message);
+  }
+
+  renderCars();
+  renderSessions();
+  renderPhotos();
+  renderStats();
+  populateCarDD();
 }
 
 
 /* ────────────────────────────────────────
-   10. RACE EVENTS (tire table)
+   8. CARS — CRUD + RENDER
 ──────────────────────────────────────── */
-.re-block {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 12px;
-  margin-bottom: 10px;
-}
-.re-block h4 {
-  font-family: var(--fh);
-  font-size: 14px;
-  font-weight: 800;
-  text-transform: uppercase;
-  margin-bottom: 10px;
-  letter-spacing: 1px;
-}
-.re-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 5px; margin-bottom: 8px; }
-.re-lbl {
-  font-size: 10px;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 2px;
-}
-.re-inp {
-  width: 100%;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  color: var(--text);
-  font-size: 12px;
-  padding: 6px 8px;
-  outline: none;
-  transition: border-color .2s;
-  font-family: var(--fb);
-}
-.re-inp:focus { border-color: var(--accent); }
+function openCarModal(id = null) {
+  editCid = id;
+  document.getElementById('car-modal-title').textContent = id ? 'Edit Car' : 'Add Car';
 
-/* Tire data table inside race events */
-.tire-tbl { width: 100%; border-collapse: collapse; font-size: 11px; }
-.tire-tbl th {
-  color: var(--muted);
-  font-family: var(--fh);
-  font-weight: 600;
-  letter-spacing: 1px;
-  font-size: 10px;
-  text-align: center;
-  padding: 3px 2px;
-  border-bottom: 1px solid var(--border);
-}
-.tire-tbl td { padding: 2px; }
-.tire-tbl td:first-child {
-  color: var(--muted);
-  font-size: 10px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  padding-right: 4px;
-  white-space: nowrap;
-}
-.tire-tbl td input {
-  width: 100%;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--text);
-  font-size: 12px;
-  padding: 5px 4px;
-  outline: none;
-  text-align: center;
-}
-.tire-tbl td input:focus { border-color: var(--accent); }
+  const car = id ? cars.find(c => c.id === id) : null;
+  document.getElementById('cm-num').value = car ? car.num : '';
+  document.getElementById('cm-name').value  = car ? car.name  || '' : '';
+  document.getElementById('cm-class').value = car ? car.cls   || '' : '';
+  document.getElementById('cm-notes').value = car ? car.notes || '' : '';
 
-
-/* ────────────────────────────────────────
-   11. PHOTOS
-──────────────────────────────────────── */
-.photo-upload-zone {
-  border: 2px dashed var(--border);
-  border-radius: 10px;
-  padding: 18px;
-  text-align: center;
-  cursor: pointer;
-  transition: border-color .2s;
+  openModal('car-modal');
 }
-.photo-upload-zone:hover { border-color: var(--accent); }
 
-.preview-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 7px; margin-top: 8px; }
+async function saveCar() {
+  const num = document.getElementById('cm-num').value.trim();
+  if (!num) { showToast('Car number required!'); return; }
 
-.preview-wrap {
-  position: relative;
-  aspect-ratio: 1;
-  border-radius: 7px;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  cursor: pointer;
+  const payload = {
+    num,
+    name: document.getElementById('cm-name').value.trim(),
+    cls: document.getElementById('cm-class').value.trim(),
+    notes: document.getElementById('cm-notes').value.trim(),
+    user_id: CU.id,
+  };
+
+  try {
+    if (editCid) {
+      const res = await sbUpdate('cars', editCid, payload);
+      const updated = Array.isArray(res) ? res[0] : res;
+      cars = cars.map(c => c.id === editCid ? updated : c);
+    } else {
+      const res = await sbInsert('cars', payload);
+      const inserted = Array.isArray(res) ? res[0] : res;
+      cars.unshift(inserted);
+    }
+    closeModal('car-modal');
+    renderCars();
+    populateCarDD();
+    renderSessions();
+    showToast('Car saved!');
+  } catch (e) {
+    showToast('Error: ' + e.message);
+  }
 }
-.preview-wrap img { width: 100%; height: 100%; object-fit: cover; }
 
-.preview-remove {
-  position: absolute;
-  top: 3px; right: 3px;
-  background: rgba(0,0,0,.7);
-  border: none;
-  color: #fff;
-  border-radius: 50%;
-  width: 20px; height: 20px;
-  cursor: pointer;
-  font-size: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+async function deleteCar(id) {
+  if (!confirm('Delete this car?')) return;
+
+  try {
+    await sbDelete('cars', id);
+    cars = cars.filter(c => c.id !== id);
+    if (ACI === id) { ACI = null; updateBadge(); }
+    renderCars();
+    populateCarDD();
+    renderSessions();
+    showToast('Car deleted.');
+  } catch (e) {
+    showToast('Error: ' + e.message);
+  }
+}
+
+function setActiveCar(id) {
+  ACI = (ACI === id) ? null : id;
+  updateBadge();
+  renderSessions();
+}
+
+function updateBadge() {
+  const car = ACI ? cars.find(c => c.id === ACI) : null;
+  document.getElementById('active-car-badge').textContent = car ? '#' + car.num : 'All Cars';
+}
+
+function renderCars() {
+  const list = document.getElementById('cars-list');
+  list.innerHTML = '';
+
+  if (!cars.length) {
+    list.innerHTML = `<div class="empty-state"><div class="icon">🏎</div><p>No cars yet.<br>Tap <b>+ Add Car</b> to get started.</p></div>`;
+    return;
+  }
+
+  cars.forEach(c => {
+    const cnt = sessions.filter(s => s.car_id === c.id).length;
+    const div = document.createElement('div');
+    div.className = 'car-card';
+    div.innerHTML = `
+      <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;">
+        <div class="car-num">${c.num}</div>
+        <div class="car-info">
+          <h3>${c.name || c.num}</h3>
+          <p>${c.cls || ''}${cnt ? ' · ' + cnt + ' session' + (cnt !== 1 ? 's' : '') : ''}</p>
+        </div>
+      </div>
+      <div class="car-actions">
+        <button class="btn ghost sm"     onclick="setActiveCar('${c.id}')">Filter</button>
+        <button class="btn ghost sm"     onclick="openCarPhotos('${c.id}')">📷</button>
+        <button class="btn secondary sm" onclick="openCarModal('${c.id}')">Edit</button>
+        <button class="btn danger sm"    onclick="deleteCar('${c.id}')">✕</button>
+      </div>`;
+    list.appendChild(div);
+  });
+}
+
+// Populate all car <select> dropdowns in modals
+function populateCarDD() {
+  const options = '<option value="">— No car —</option>'
+    + cars.map(c => `<option value="${c.id}">#${c.num} ${c.name || ''}</option>`).join('');
+  document.getElementById('ns-car').innerHTML = options;
 }
 
 
 /* ────────────────────────────────────────
-   12. CARS LIST
+   9. SESSIONS — FORM HELPERS
 ──────────────────────────────────────── */
-.cars-list { display: flex; flex-direction: column; gap: 9px; }
+// Corner names and field names used to auto-clear / auto-populate the chassis grid
+const CORNER_NAMES = ['lf', 'rf', 'lr', 'rr'];
+const CORNER_FIELDS = ['block', 'bar', 'preload', 'comp', 'reb', 'tire', 'psi', 'ride'];
 
-.car-card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-.car-num {
-  width: 48px; height: 48px;
-  border-radius: 9px;
-  background: rgba(240,112,0,.15);
-  border: 2px solid var(--accent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--fh);
-  font-size: 20px;
-  font-weight: 800;
-  color: var(--accent);
-  flex-shrink: 0;
-}
-.car-info h3 { font-family: var(--fh); font-size: 17px; font-weight: 700; text-transform: uppercase; }
-.car-info p  { font-size: 12px; color: var(--muted); }
-.car-actions { display: flex; gap: 6px; flex-shrink: 0; }
-
-
-/* ────────────────────────────────────────
-   13. STATS & PROFILE
-──────────────────────────────────────── */
-.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-bottom: 14px; }
-
-.stat-card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 14px;
-  text-align: center;
-}
-.stat-card .num {
-  font-family: var(--fh);
-  font-size: 36px;
-  font-weight: 800;
-  color: var(--accent);
-  line-height: 1;
-}
-.stat-card .lbl {
-  font-size: 10px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-top: 3px;
+// Safe getValue helper
+function gv(id) {
+  const el = document.getElementById(id);
+  return el ? el.value.trim() : '';
 }
 
-.profile-header {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 16px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 12px;
-}
-.avatar {
-  width: 50px; height: 50px;
-  border-radius: 50%;
-  background: rgba(240,112,0,.2);
-  border: 2px solid var(--accent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22px;
-  font-family: var(--fh);
-  font-weight: 800;
-  color: var(--accent);
-  flex-shrink: 0;
-}
-.profile-info h3 { font-family: var(--fh); font-size: 19px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
-.profile-info p  { font-size: 12px; color: var(--muted); }
+function openNewSession() {
+  editSid = null;
+  clearForm();
+  document.getElementById('ns-title').textContent = 'New Session';
+  document.getElementById('ns-date').value = new Date().toISOString().split('T')[0];
+  if (ACI) document.getElementById('ns-car').value = ACI;
 
+  document.getElementById('re-container').innerHTML = '';
+  reCount = 0;
+  addRaceEvent();
 
-/* ────────────────────────────────────────
-   14. DETAIL VIEW (session detail modal)
-──────────────────────────────────────── */
-.detail-section {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 12px;
-  margin-bottom: 10px;
+  openModal('ns-modal');
 }
-.detail-section h4 {
-  font-family: var(--fh);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--accent);
-  margin-bottom: 10px;
-}
-.detail-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 5px 0;
-  border-bottom: 1px solid var(--border);
-  font-size: 13px;
-}
-.detail-row:last-child  { border-bottom: none; }
-.detail-row span:first-child { color: var(--muted); }
-.detail-row span:last-child  { font-weight: 600; }
-.detail-notes { font-size: 13px; line-height: 1.7; white-space: pre-wrap; }
 
-.c-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.c-detail-blk {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px;
-}
-.c-detail-blk h5 {
-  font-family: var(--fh);
-  font-size: 13px;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: var(--accent);
-  margin-bottom: 7px;
-  letter-spacing: 1px;
+function clearForm() {
+  // Basic event info + engine fields
+  [
+    'ns-track', 'ns-date', 'ns-driver', 'ns-class', 'ns-condition',
+    'ns-engine', 'ns-gear', 'ns-exhaust', 'ns-injection', 'ns-fp', 'ns-wing', 'ns-notes',
+  ].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+
+  // Corner grid inputs
+  CORNER_NAMES.forEach(cn => {
+    CORNER_FIELDS.forEach(f => {
+      const el = document.getElementById(cn + '-' + f);
+      if (el) el.value = '';
+    });
+  });
+
+  // Corner-specific extras
+  ['rr-stagger', 'rr-spacing', 'lr-spacing'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  ['lr-radius', 'rr-radius', 'rr-jacobs', 'front-panhard'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+
+  document.getElementById('ns-car').value = '';
+  pendingPhotos = [];
+  renderPending();
 }
 
 
 /* ────────────────────────────────────────
-   15. LIGHTBOX & TOAST
+   10. SESSIONS — RACE EVENTS
 ──────────────────────────────────────── */
-.lightbox {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,.92);
-  z-index: 300;
-  align-items: center;
-  justify-content: center;
-}
-.lightbox.open { display: flex; }
-.lightbox img  { max-width: 96vw; max-height: 90vh; border-radius: 8px; object-fit: contain; }
-.lightbox-close {
-  position: absolute;
-  top: 14px; right: 14px;
-  font-size: 26px;
-  color: #fff;
-  cursor: pointer;
-  background: none;
-  border: none;
+function addRaceEvent(d = null) {
+  reCount++;
+  const i = reCount;
+  const container = document.getElementById('re-container');
+
+  const rows = ['bar-size', 'turns', 'rebound', 'compression', 'PSI'];
+  const corners = ['lf', 'rf', 'lr', 'rr'];
+
+  // Build tire table rows
+  const tireTbody = rows.map(row => {
+    const cells = corners.map(cor => {
+      const val = d && d.tires && d.tires[row] ? d.tires[row][cor] || '' : '';
+      return `<td><input id="re-${row}-${cor}-${i}" value="${val}"></td>`;
+    }).join('');
+    return `<tr><td>${row}</td>${cells}</tr>`;
+  }).join('');
+
+  const staggerVal = d && d.tires && d.tires.stagger ? d.tires.stagger.rr || '' : '';
+
+  const div = document.createElement('div');
+  div.className = 're-block';
+  div.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;">
+      <h4>Race Event</h4>
+      <button class="icon-btn" onclick="this.closest('.re-block').remove()">✕</button>
+    </div>
+    <div class="re-4" style="margin-bottom:8px;">
+      <div><div class="re-lbl">Start</div>   <input class="re-inp" id="re-start-${i}"  placeholder="8th"  value="${d ? d.start   || '' : ''}"></div>
+      <div><div class="re-lbl">Finish</div>  <input class="re-inp" id="re-finish-${i}" placeholder="3rd"  value="${d ? d.finish  || '' : ''}"></div>
+      <div><div class="re-lbl"># Cars</div>  <input class="re-inp" id="re-cars-${i}"   placeholder="24"   value="${d ? d.numCars || '' : ''}"></div>
+      <div><div class="re-lbl">Laps</div>    <input class="re-inp" id="re-laps-${i}"   placeholder="40"   value="${d ? d.laps    || '' : ''}"></div>
+    </div>
+    <div style="margin-bottom:8px;">
+      <div class="re-lbl">Track Condition</div>
+      <input class="re-inp" id="re-cond-${i}" placeholder="Slick / Tacky / Cushion…" value="${d ? d.cond || '' : ''}">
+    </div>
+    <div class="re-lbl" style="margin-bottom:5px;">Tires</div>
+    <table class="tire-tbl">
+      <thead>
+        <tr><th></th><th>LF</th><th>RF</th><th>LR</th><th>RR</th></tr>
+      </thead>
+      <tbody>
+        ${tireTbody}
+        <tr>
+          <td>Stagger</td>
+          <td><input id="re-stagger-rr-${i}" value="${staggerVal}"></td>
+          <td></td><td></td><td></td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="margin-top:8px;">
+      <div class="re-lbl">Notes</div>
+      <input class="re-inp" id="re-note-${i}" placeholder="Session notes…" value="${d ? d.note || '' : ''}">
+    </div>`;
+
+  container.appendChild(div);
 }
 
-.toast {
-  position: fixed;
-  bottom: 70px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--success);
-  color: #000;
-  font-family: var(--fh);
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  padding: 8px 20px;
-  border-radius: 50px;
-  z-index: 400;
-  opacity: 0;
-  transition: opacity .3s;
-  pointer-events: none;
-  white-space: nowrap;
+// Collect all race event data from DOM into an array of objects
+function collectRE() {
+  const events = [];
+  const rows = ['bar-size', 'turns', 'rebound', 'compression', 'PSI'];
+  const corners = ['lf', 'rf', 'lr', 'rr'];
+
+  document.querySelectorAll('#re-container .re-block').forEach(block => {
+    // Extract the index from the first input's id
+    const inp = block.querySelector('input');
+    if (!inp) return;
+    const m = inp.id.match(/-(\d+)$/);
+    if (!m) return;
+    const i = m[1];
+
+    const tires = {};
+    rows.forEach(r => {
+      tires[r] = {};
+      corners.forEach(c => { tires[r][c] = gv(`re-${r}-${c}-${i}`); });
+    });
+    tires.stagger = { rr: gv(`re-stagger-rr-${i}`) };
+
+    events.push({
+      start: gv(`re-start-${i}`),
+      finish: gv(`re-finish-${i}`),
+      numCars: gv(`re-cars-${i}`),
+      laps: gv(`re-laps-${i}`),
+      cond: gv(`re-cond-${i}`),
+      note: gv(`re-note-${i}`),
+      tires,
+    });
+  });
+
+  return events;
 }
-.toast.show { opacity: 1; }
 
 
 /* ────────────────────────────────────────
-   16. UTILITY CLASSES
+   11. SESSIONS — PHOTOS (SESSION-ATTACHED)
 ──────────────────────────────────────── */
-.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+function handlePhotos(e) {
+  Array.from(e.target.files).forEach(f => {
+    const reader = new FileReader();
+    reader.onload = ev => { pendingPhotos.push(ev.target.result); renderPending(); };
+    reader.readAsDataURL(f);
+  });
+  e.target.value = '';
+}
 
-.empty-state       { text-align: center; padding: 48px 20px; color: var(--muted); }
-.empty-state .icon { font-size: 48px; margin-bottom: 12px; }
-.empty-state p     { font-size: 13px; line-height: 1.6; }
+function renderPending() {
+  const grid = document.getElementById('photo-preview');
+  grid.innerHTML = '';
+  pendingPhotos.forEach((src, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'preview-wrap';
+    wrap.innerHTML = `
+      <img src="${src}">
+      <button class="preview-remove" onclick="pendingPhotos.splice(${i},1);renderPending()">✕</button>`;
+    grid.appendChild(wrap);
+  });
+}
 
 
 /* ────────────────────────────────────────
-   18. LIGHT MODE
+   12. SESSIONS — SAVE / EDIT / DELETE
 ──────────────────────────────────────── */
-body.light-mode {
-  --bg: #f0ede8;
-  --surface: #faf8f5;
-  --card: #ffffff;
-  --border: #ddd9d0;
-  --accent: #d45f00;
-  --accent2: #e07800;
-  --danger: #cc2020;
-  --text: #1a1714;
-  --muted: #8a8076;
-  --success: #2a9e50;
+async function saveSession() {
+  const track = gv('ns-track');
+  if (!track) { showToast('Track name required!'); return; }
+
+  // Collect corner data
+  const corners = {};
+  CORNER_NAMES.forEach(cn => {
+    corners[cn] = {};
+    CORNER_FIELDS.forEach(f => { corners[cn][f] = gv(cn + '-' + f); });
+  });
+  corners.rr.stagger = gv('rr-stagger');
+  corners.rr.spacing = gv('rr-spacing');
+  corners.lr.spacing = gv('lr-spacing');
+  const bolt_ons = {
+    lr_radius:     gv('lr-radius'),
+    rr_radius:     gv('rr-radius'),
+    jacobs_ladder: gv('rr-jacobs'),
+    front_panhard: gv('front-panhard'),
+  };
+
+  const payload = {
+    user_id: CU.id,
+    car_id: gv('ns-car') || null,
+    track,
+    date: gv('ns-date'),
+    driver: gv('ns-driver'),
+    cls: gv('ns-class'),
+    cond: gv('ns-condition'),
+    engine: gv('ns-engine'),
+    gear: gv('ns-gear'),
+    exhaust: gv('ns-exhaust'),
+    injection: gv('ns-injection'),
+    fp: gv('ns-fp'),
+    wing: gv('ns-wing'),
+    corners,
+    bolt_ons,
+    race_events: collectRE(),
+    notes: gv('ns-notes'),
+    photos: pendingPhotos,
+  };
+
+  try {
+    if (editSid) {
+      const res = await sbUpdate('sessions', editSid, payload);
+      const updated = Array.isArray(res) ? res[0] : res;
+      sessions = sessions.map(s => s.id === editSid ? updated : s);
+    } else {
+      const res = await sbInsert('sessions', payload);
+      const inserted = Array.isArray(res) ? res[0] : res;
+      sessions.unshift(inserted);
+    }
+    closeModal('ns-modal');
+    renderSessions();
+    renderPhotos();
+    renderStats();
+    showToast('Session saved! 🏁');
+  } catch (e) {
+    showToast('Error: ' + e.message);
+  }
 }
 
-body.light-mode #login-screen {
-  background:
-    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(212,95,0,.10) 0%, transparent 70%),
-    var(--bg);
+function editSession() {
+  const s = sessions.find(x => x.id === detailId);
+  if (!s) return;
+
+  closeModal('detail-modal');
+  clearForm();
+  editSid = s.id;
+
+  document.getElementById('ns-title').textContent = 'Edit Session';
+  document.getElementById('ns-track').value = s.track  || '';
+  document.getElementById('ns-date').value = s.date   || '';
+  document.getElementById('ns-driver').value = s.driver || '';
+  document.getElementById('ns-car').value = s.car_id || '';
+  document.getElementById('ns-class').value = s.cls    || '';
+  document.getElementById('ns-condition').value = s.cond   || '';
+  document.getElementById('ns-engine').value = s.engine || '';
+  document.getElementById('ns-gear').value = s.gear   || '';
+  document.getElementById('ns-exhaust').value = s.exhaust    || '';
+  document.getElementById('ns-injection').value = s.injection  || '';
+  document.getElementById('ns-fp').value = s.fp     || '';
+  document.getElementById('ns-wing').value = s.wing   || '';
+
+  // Restore corner inputs
+  CORNER_NAMES.forEach(cn => {
+    CORNER_FIELDS.forEach(f => {
+      const el = document.getElementById(cn + '-' + f);
+      if (el && s.corners && s.corners[cn]) el.value = s.corners[cn][f] || '';
+    });
+  });
+  if (s.corners) {
+    if (s.corners.rr) {
+      document.getElementById('rr-stagger').value = s.corners.rr.stagger || '';
+      document.getElementById('rr-spacing').value = s.corners.rr.spacing || '';
+      document.getElementById('rr-radius').value  = s.corners.rr.radius  || '';
+      document.getElementById('rr-jacobs').value  = s.corners.rr.jacobs  || '';
+    }
+    if (s.corners.lr) {
+    document.getElementById('lr-spacing').value = s.corners.lr.spacing || '';
+    }
+
+    // Restore bolt-on inputs
+    if (s.bolt_ons) {
+      document.getElementById('lr-radius').value     = s.bolt_ons.lr_radius     || '';
+      document.getElementById('rr-radius').value     = s.bolt_ons.rr_radius     || '';
+      document.getElementById('rr-jacobs').value     = s.bolt_ons.jacobs_ladder || '';
+      document.getElementById('front-panhard').value = s.bolt_ons.front_panhard || '';
+    } else if (s.corners) {
+      document.getElementById('lr-radius').value = (s.corners.lr && s.corners.lr.radius) || '';
+      document.getElementById('rr-radius').value = (s.corners.rr && s.corners.rr.radius) || '';
+      document.getElementById('rr-jacobs').value = (s.corners.rr && s.corners.rr.jacobs) || '';
+    }
+  }
+
+  // Restore race events
+  document.getElementById('re-container').innerHTML = '';
+  reCount = 0;
+  (s.race_events || []).forEach(e => addRaceEvent(e));
+  if (!s.race_events || !s.race_events.length) addRaceEvent();
+
+  document.getElementById('ns-notes').value = s.notes || '';
+  pendingPhotos = [...(s.photos || [])];
+  renderPending();
+
+  openModal('ns-modal');
 }
 
-body.light-mode .topbar,
-body.light-mode .tabbar {
-  box-shadow: 0 1px 8px rgba(0,0,0,.08);
+async function deleteSession() {
+  if (!detailId || !confirm('Delete this session?')) return;
+
+  try {
+    await sbDelete('sessions', detailId);
+    sessions = sessions.filter(s => s.id !== detailId);
+    closeModal('detail-modal');
+    renderSessions();
+    renderPhotos();
+    renderStats();
+    showToast('Session deleted.');
+  } catch (e) {
+    showToast('Error: ' + e.message);
+  }
 }
+
 
 /* ────────────────────────────────────────
-   19. SETTINGS MODAL STYLES
+   13. SESSIONS — RENDER LIST
 ──────────────────────────────────────── */
-.settings-section {
-  padding: 4px 0 10px;
+function renderSessions() {
+  // Build filter bar
+  const fb = document.getElementById('filter-bar');
+  fb.innerHTML = '';
+
+  const allChip = document.createElement('div');
+  allChip.className = 'filter-chip' + (ACI ? '' : ' active');
+  allChip.textContent = 'All Cars';
+  allChip.onclick = () => { ACI = null; updateBadge(); renderSessions(); };
+  fb.appendChild(allChip);
+
+  cars.forEach(c => {
+    const chip = document.createElement('div');
+    chip.className = 'filter-chip' + (ACI === c.id ? ' active' : '');
+    chip.textContent = '#' + c.num + (c.name ? ' — ' + c.name : '');
+    chip.onclick = () => setActiveCar(c.id);
+    fb.appendChild(chip);
+  });
+
+  // Filter sessions by active car
+  const data = ACI ? sessions.filter(s => s.car_id === ACI) : sessions;
+  const list = document.getElementById('sessions-list');
+  list.innerHTML = '';
+
+  if (!data.length) {
+    list.innerHTML = `<div class="empty-state"><div class="icon">🏁</div><p>No sessions yet.<br>Tap <b>+ New</b> to log your first setup.</p></div>`;
+    return;
+  }
+
+  data.forEach((s, i) => {
+    const car = cars.find(c => c.id === s.car_id);
+    const ds = s.date
+      ? new Date(s.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : '';
+
+    const finishes = (s.race_events || []).map(e => parseInt(e.finish)).filter(n => !isNaN(n));
+    const fchip = finishes.length ? `<span class="chip ac">P${Math.min(...finishes)}</span>` : '';
+
+    const thumbs = (s.photos && s.photos.length)
+      ? s.photos.slice(0, 3).map(p =>
+          `<img class="photo-thumb" src="${p}" onclick="event.stopPropagation();openLightbox('${p}')">`
+        ).join('')
+      : '';
+
+    const card = document.createElement('div');
+    card.className = 'session-card';
+    card.style.animationDelay = (i * 0.04) + 's';
+    card.onclick = () => openDetail(s.id);
+    card.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div class="card-track">${s.track}</div>
+        <div style="font-size:12px;color:var(--muted);">${ds}</div>
+      </div>
+      <div class="card-meta">
+        ${car   ? `<span class="chip car">#${car.num}</span>` : ''}
+        ${s.cls  ? `<span class="chip">${s.cls}</span>`  : ''}
+        ${s.cond ? `<span class="chip">${s.cond}</span>` : ''}
+        ${fchip}
+      </div>
+      ${s.notes ? `<div class="card-note">${s.notes}</div>` : ''}
+      ${thumbs  ? `<div class="thumb-row">${thumbs}</div>` : ''}`;
+
+    list.appendChild(card);
+  });
 }
 
-.settings-section-title {
-  font-family: var(--fh);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--accent);
-  margin-bottom: 12px;
+
+/* ────────────────────────────────────────
+   14. SESSIONS — DETAIL VIEW
+──────────────────────────────────────── */
+function openDetail(id) {
+  const s = sessions.find(x => x.id === id);
+  if (!s) return;
+  detailId = id;
+
+  const car = cars.find(c => c.id === s.car_id);
+  const ds  = s.date
+    ? new Date(s.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : '';
+
+  document.getElementById('detail-title').textContent = s.track;
+
+  // Helper: build a list of <div class="detail-row"> for non-empty [label, value] pairs
+  const rows = pairs => pairs
+    .filter(([, v]) => v)
+    .map(([l, v]) => `<div class="detail-row"><span>${l}</span><span>${v}</span></div>`)
+    .join('');
+
+  // Build one corner block
+  const cdet = (cn, lbl) => {
+    const c = (s.corners && s.corners[cn]) || {};
+    const fields = [
+      ['Block Size',  c.block],
+      ['Bar Size',    c.bar],
+      ['Preload',     c.preload],
+      ['Shock Comp.', c.comp],
+      ['Shock Reb.',  c.reb],
+      ['Tire Size',   c.tire],
+      ['Air PSI',     c.psi],
+      ['Ride Height', c.ride],
+    ];
+    if (cn === 'lr') fields.push(['LR Spacing', c.spacing]);
+    if (cn === 'rr') fields.push(['Stagger', c.stagger], ['RR Spacing', c.spacing]);
+
+    const content = rows(fields);
+    if (!content) return '';
+    return `<div class="c-detail-blk"><h5>${lbl}</h5>${content}</div>`;
+  };
+
+  const cornersH = [cdet('lf','LF'), cdet('rf','RF'), cdet('lr','LR'), cdet('rr','RR')].filter(Boolean).join('');
+
+  // Race events HTML
+  const evH = (s.race_events && s.race_events.length)
+    ? s.race_events.map(e => {
+        const tireRows  = ['bar-size','turns','rebound','compression','PSI']
+          .filter(r => ['lf','rf','lr','rr'].some(c => e.tires && e.tires[r] && e.tires[r][c]));
+        const staggerRR = e.tires && e.tires.stagger && e.tires.stagger.rr;
+
+        const tireLbl = { 'bar-size':'Bar Size', 'turns':'Turns', 'rebound':'Rebound', 'compression':'Compression', 'PSI':'PSI' };
+        const ttbl = (tireRows.length || staggerRR) ? `
+          <table class="tire-tbl" style="margin-top:8px;">
+            <thead><tr><th></th><th>LF</th><th>RF</th><th>LR</th><th>RR</th></tr></thead>
+            <tbody>
+              ${tireRows.map(r => `<tr><td>${tireLbl[r] || r}</td>${['lf','rf','lr','rr'].map(c =>
+                `<td style="font-size:12px;text-align:center;">${(e.tires[r] && e.tires[r][c]) || '—'}</td>`
+              ).join('')}</tr>`).join('')}
+              ${staggerRR ? `<tr><td>Stagger</td><td>—</td><td>—</td><td>—</td><td style="font-size:12px;text-align:center;">${e.tires.stagger.rr}</td></tr>` : ''}
+            </tbody>
+          </table>` : '';
+
+        return `<div class="re-block">
+          ${rows([['Start',e.start],['Finish',e.finish],['# Cars',e.numCars],['Laps',e.laps],['Track Condition',e.cond]])}
+          ${ttbl}
+          ${e.note ? `<div style="margin-top:7px;font-size:13px;color:var(--muted);">${e.note}</div>` : ''}
+        </div>`;
+      }).join('')
+    : '';
+
+  const photosH = (s.photos && s.photos.length)
+    ? `<div class="detail-section"><h4>📷 Photos</h4>
+        <div class="preview-grid">
+          ${s.photos.map(p => `<div class="preview-wrap" onclick="openLightbox('${p}')"><img src="${p}"></div>`).join('')}
+        </div>
+       </div>`
+    : '';
+
+  document.getElementById('detail-body').innerHTML = `
+    <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px;">
+      ${ds     ? `<span class="chip">${ds}</span>` : ''}
+      ${car    ? `<span class="chip car">#${car.num} ${car.name || ''}</span>` : ''}
+      ${s.cls  ? `<span class="chip">${s.cls}</span>`  : ''}
+      ${s.cond ? `<span class="chip">${s.cond}</span>` : ''}
+      ${s.driver ? `<span class="chip">${s.driver}</span>` : ''}
+    </div>
+    ${cornersH ? `<div class="detail-section"><h4>🔧 Chassis Setup</h4><div class="c-detail-grid">${cornersH}</div></div>` : ''}
+    ${(s.bolt_ons && (s.bolt_ons.lr_radius || s.bolt_ons.rr_radius || s.bolt_ons.jacobs_ladder || s.bolt_ons.front_panhard))
+      || (s.corners && ((s.corners.lr && s.corners.lr.radius) || (s.corners.rr && (s.corners.rr.radius || s.corners.rr.jacobs))))
+      ? `<div class="detail-section"><h4>🔩 Bolt-Ons</h4>
+        ${rows([
+          ['LR Radius Rod',  s.bolt_ons ? s.bolt_ons.lr_radius     : (s.corners.lr && s.corners.lr.radius)],
+          ['RR Radius Rod',  s.bolt_ons ? s.bolt_ons.rr_radius     : (s.corners.rr && s.corners.rr.radius)],
+          ["Jacob's Ladder", s.bolt_ons ? s.bolt_ons.jacobs_ladder : (s.corners.rr && s.corners.rr.jacobs)],
+          ['Front Panhard',  s.bolt_ons ? s.bolt_ons.front_panhard : ''],
+        ])}
+      </div>` : ''}
+    ${(s.engine || s.gear || s.exhaust || s.injection || s.fp || s.wing)
+      ? `<div class="detail-section"><h4>⚙️ Engine / Other</h4>
+          ${rows([['Engine',s.engine],['Gearing',s.gear],['Exhaust',s.exhaust],['Injection',s.injection],['Fuel Pressure',s.fp],['Wing Angle',s.wing]])}
+         </div>` : ''}
+    ${evH     ? `<div class="detail-section"><h4>🏁 Race Events</h4>${evH}</div>` : ''}
+    ${s.notes ? `<div class="detail-section"><h4>📝 Notes</h4><div class="detail-notes">${s.notes}</div></div>` : ''}
+    ${photosH}`;
+
+  openModal('detail-modal');
 }
 
-.settings-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 4px 0;
+
+/* ────────────────────────────────────────
+   15. PHOTOS PAGE — STANDALONE UPLOAD
+──────────────────────────────────────── */
+function openPhotoUpload() {
+  standalonePhotos = [];
+  document.getElementById('pu-preview').innerHTML = '';
+  document.getElementById('pu-caption').value = '';
+
+  const sel = document.getElementById('pu-car');
+  sel.innerHTML = '<option value="">— No car —</option>'
+    + cars.map(c => `<option value="${c.id}">#${c.num} ${c.name || ''}</option>`).join('');
+  sel.value = '';
+
+  openModal('photo-upload-modal');
 }
 
-.settings-label {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text);
+function handleStandalonePhotos(e) {
+  Array.from(e.target.files).forEach(f => {
+    const reader = new FileReader();
+    reader.onload = ev => { standalonePhotos.push(ev.target.result); renderStandalonePreview(); };
+    reader.readAsDataURL(f);
+  });
+  e.target.value = '';
 }
 
-.settings-sublabel {
-  font-size: 12px;
-  color: var(--muted);
-  margin-top: 2px;
+function renderStandalonePreview() {
+  const grid = document.getElementById('pu-preview');
+  grid.innerHTML = '';
+  standalonePhotos.forEach((src, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'preview-wrap';
+    wrap.innerHTML = `
+      <img src="${src}">
+      <button class="preview-remove" onclick="standalonePhotos.splice(${i},1);renderStandalonePreview()">✕</button>`;
+    grid.appendChild(wrap);
+  });
 }
 
-.settings-divider {
-  height: 1px;
-  background: var(--border);
-  margin: 6px 0 14px;
+async function saveStandalonePhotos() {
+  if (!standalonePhotos.length) { showToast('Add at least one photo!'); return; }
+
+  const carId = document.getElementById('pu-car').value || null;
+  const caption = document.getElementById('pu-caption').value.trim();
+
+  const payload = {
+    user_id: CU.id,
+    car_id: carId,
+    track: caption || 'Standalone Photos',
+    date: new Date().toISOString().split('T')[0],
+    photos: standalonePhotos,
+    corners: {},
+    race_events: [],
+    notes: caption,
+  };
+
+  try {
+    const res = await sbInsert('sessions', payload);
+    const inserted = Array.isArray(res) ? res[0] : res;
+    sessions.unshift(inserted);
+    closeModal('photo-upload-modal');
+    renderPhotos();
+    renderStats();
+    showToast('Photos saved! 📷');
+  } catch (e) {
+    showToast('Error: ' + e.message);
+  }
 }
 
-.success-msg {
-  background: rgba(61,190,106,.15);
-  border: 1px solid rgba(61,190,106,.4);
-  border-radius: 7px;
-  color: #3dbe6a;
-  font-size: 13px;
-  padding: 9px 12px;
-  margin-bottom: 12px;
-  display: none;
-}
-.success-msg.show { display: block; }
 
-/* Theme Toggle Switch */
-.theme-toggle {
-  position: relative;
-  width: 52px;
-  height: 28px;
-  background: var(--border);
-  border: none;
-  border-radius: 14px;
-  cursor: pointer;
-  transition: background .3s;
-  flex-shrink: 0;
-  padding: 0;
+/* ────────────────────────────────────────
+   16. PHOTOS PAGE — CAR PHOTOS MODAL
+──────────────────────────────────────── */
+function openCarPhotos(carId) {
+  currentCarPhotosId = carId;
+  const car = cars.find(c => c.id === carId);
+  document.getElementById('car-photos-title').textContent = '#' + car.num + ' Photos';
+  renderCarPhotosBody();
+  openModal('car-photos-modal');
 }
 
-.theme-toggle.on {
-  background: var(--accent);
+function renderCarPhotosBody() {
+  const carSessions = sessions.filter(s => s.car_id === currentCarPhotosId);
+  const allPhotos = carSessions.flatMap(s =>
+    (s.photos || []).map(p => ({ src: p, track: s.track, date: s.date }))
+  );
+
+  const body = document.getElementById('car-photos-body');
+  if (!allPhotos.length) {
+    body.innerHTML = '<div class="empty-state"><div class="icon">📷</div><p>No photos for this car yet.</p></div>';
+    return;
+  }
+  body.innerHTML = `
+    <div class="preview-grid">
+      ${allPhotos.map(p => `<div class="preview-wrap" onclick="openLightbox('${p.src}')"><img src="${p.src}"></div>`).join('')}
+    </div>`;
 }
 
-.theme-toggle-thumb {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 22px;
-  height: 22px;
-  background: #fff;
-  border-radius: 50%;
-  transition: transform .3s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  box-shadow: 0 1px 4px rgba(0,0,0,.3);
+function addCarPhoto() {
+  standalonePhotos = [];
+  document.getElementById('pu-preview').innerHTML = '';
+  document.getElementById('pu-caption').value     = '';
+
+  const sel = document.getElementById('pu-car');
+  sel.innerHTML = '<option value="">— No car —</option>'
+    + cars.map(c => `<option value="${c.id}">#${c.num} ${c.name || ''}</option>`).join('');
+  sel.value = currentCarPhotosId || '';
+
+  closeModal('car-photos-modal');
+  openModal('photo-upload-modal');
 }
 
-.theme-toggle.on .theme-toggle-thumb {
-  transform: translateX(24px);
+// Re-uses standalone photo handler
+function handleCarPhotoAdd(e) {
+  handleStandalonePhotos(e);
 }
 
-@keyframes slideUp {
-  from { transform: translateY(60px); opacity: 0; }
-  to   { transform: translateY(0);    opacity: 1; }
+
+/* ────────────────────────────────────────
+   17. PHOTOS PAGE — RENDER GRID
+──────────────────────────────────────── */
+function renderPhotos() {
+  const grid = document.getElementById('photos-grid');
+
+  // Build filter bar
+  const fb = document.getElementById('photo-filter-bar');
+  fb.innerHTML = '';
+  let photoFilter = grid.dataset.filter || 'all';
+
+  const allChip = document.createElement('div');
+  allChip.className = 'filter-chip' + (photoFilter === 'all' ? ' active' : '');
+  allChip.textContent = 'All';
+  allChip.onclick = () => { grid.dataset.filter = 'all'; renderPhotos(); };
+  fb.appendChild(allChip);
+
+  const standaloneChip = document.createElement('div');
+  standaloneChip.className = 'filter-chip' + (photoFilter === 'standalone' ? ' active' : '');
+  standaloneChip.textContent = 'Standalone';
+  standaloneChip.onclick = () => { grid.dataset.filter = 'standalone'; renderPhotos(); };
+  fb.appendChild(standaloneChip);
+
+  cars.forEach(c => {
+    const ch = document.createElement('div');
+    ch.className = 'filter-chip' + (photoFilter === c.id ? ' active' : '');
+    ch.textContent = '#' + c.num;
+    ch.onclick = () => { grid.dataset.filter = c.id; renderPhotos(); };
+    fb.appendChild(ch);
+  });
+
+  // Filter sessions by car
+  let filtered = sessions;
+  if (photoFilter === 'standalone') filtered = sessions.filter(s => !s.car_id);
+  else if (photoFilter !== 'all')        filtered = sessions.filter(s => s.car_id === photoFilter);
+
+  const allPhotos = filtered.flatMap(s => (s.photos || []));
+  grid.innerHTML  = '';
+
+  if (!allPhotos.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="icon">📷</div><p>No photos yet.<br>Tap <b>+ Add</b> to upload.</p></div>`;
+    return;
+  }
+
+  allPhotos.forEach(src => {
+    const wrap = document.createElement('div');
+    wrap.style = 'aspect-ratio:1;border-radius:6px;overflow:hidden;cursor:pointer;';
+    wrap.innerHTML = `<img src="${src}" style="width:100%;height:100%;object-fit:cover;" onclick="openLightbox('${src}')">`;
+    grid.appendChild(wrap);
+  });
 }
 
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
+
+/* ────────────────────────────────────────
+   18. STATS — RENDER
+──────────────────────────────────────── */
+function renderStats() {
+  const total = sessions.length;
+  const photos = sessions.reduce((n, s) => n + (s.photos ? s.photos.length : 0), 0);
+  const tracks = [...new Set(sessions.map(s => s.track).filter(Boolean))];
+  const finishes = sessions.flatMap(s =>
+    (s.race_events || []).map(e => parseInt(e.finish))
+  ).filter(n => !isNaN(n));
+  const best = finishes.length ? Math.min(...finishes) : '—';
+
+  document.getElementById('stats-cards').innerHTML = `
+    <div class="stat-card"><div class="num">${total}</div><div class="lbl">Sessions</div></div>
+    <div class="stat-card"><div class="num">${tracks.length}</div><div class="lbl">Tracks</div></div>
+    <div class="stat-card"><div class="num">${photos}</div><div class="lbl">Photos</div></div>
+    <div class="stat-card"><div class="num">${best === '—' ? '—' : 'P' + best}</div><div class="lbl">Best Finish</div></div>`;
+
+  document.getElementById('tracks-list').innerHTML = tracks.length
+    ? tracks.map(t => {
+        const cnt = sessions.filter(s => s.track === t).length;
+        return `<div class="detail-row"><span>${t}</span><span>${cnt} session${cnt !== 1 ? 's' : ''}</span></div>`;
+      }).join('')
+    : '<p style="color:var(--muted);font-size:13px;padding:8px 0;">No tracks logged yet.</p>';
+
+  document.getElementById('best-finish').innerHTML = best !== '—'
+    ? `<div class="detail-row"><span>Best Finish</span><span>P${best}</span></div>`
+    : '<p style="color:var(--muted);font-size:13px;padding:8px 0;">No finishes logged yet.</p>';
 }
 
-@keyframes fadeDown {
-  from { opacity: 0; transform: translateY(-10px); }
-  to   { opacity: 1; transform: translateY(0); }
+
+/* ────────────────────────────────────────
+   19. MODALS & LIGHTBOX
+──────────────────────────────────────── */
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// Close any modal (except new session) by tapping backdrop
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay && overlay.id !== 'ns-modal') {
+      overlay.classList.remove('open');
+    }
+  });
+});
+
+function openLightbox(src) {
+  document.getElementById('lightbox-img').src = src;
+  document.getElementById('lightbox').classList.add('open');
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+}
+
+
+/* ────────────────────────────────────────
+   20. TOAST
+──────────────────────────────────────── */
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+
+/* ────────────────────────────────────────
+   21. SETTINGS MODAL
+──────────────────────────────────────── */
+function openSettingsModal() {
+  // Clear any previous messages
+  ['settings-email-error','settings-email-success','settings-pass-error','settings-pass-success'].forEach(id => {
+    const el = document.getElementById(id);
+    el.textContent = '';
+    el.classList.remove('show');
+  });
+  document.getElementById('settings-new-email').value = '';
+  document.getElementById('settings-new-pass').value = '';
+  document.getElementById('settings-confirm-pass').value = '';
+
+  // Sync toggle state
+  const isLight = document.body.classList.contains('light-mode');
+  const btn = document.getElementById('theme-toggle-btn');
+  if (isLight) btn.classList.add('on'); else btn.classList.remove('on');
+  document.getElementById('theme-sublabel').textContent = isLight ? 'Light Mode' : 'Dark Mode';
+  document.getElementById('theme-toggle-btn').querySelector('.theme-toggle-thumb').textContent = isLight ? '☀️' : '🌙';
+
+  openModal('settings-modal');
+}
+
+/* ── Theme Toggle ── */
+function toggleTheme() {
+  const body = document.body;
+  const isLight = body.classList.toggle('light-mode');
+  localStorage.setItem('pn_theme', isLight ? 'light' : 'dark');
+
+  const btn = document.getElementById('theme-toggle-btn');
+  btn.classList.toggle('on', isLight);
+  document.getElementById('theme-sublabel').textContent = isLight ? 'Light Mode' : 'Dark Mode';
+  btn.querySelector('.theme-toggle-thumb').textContent = isLight ? '☀️' : '🌙';
+}
+
+// Apply saved theme on load
+(function applyTheme() {
+  const saved = localStorage.getItem('pn_theme');
+  if (saved === 'light') {
+    document.body.classList.add('light-mode');
+  }
+})();
+
+/* ── Change Email ── */
+async function changeEmail() {
+  const newEmail = document.getElementById('settings-new-email').value.trim();
+  const errEl  = document.getElementById('settings-email-error');
+  const okEl   = document.getElementById('settings-email-success');
+  errEl.classList.remove('show');
+  okEl.classList.remove('show');
+
+  if (!newEmail) {
+    errEl.textContent = 'Enter a new email address.';
+    errEl.classList.add('show');
+    return;
+  }
+
+  try {
+    await sbFetch('/auth/v1/user', {
+      method: 'PUT',
+      body: JSON.stringify({ email: newEmail }),
+    });
+    okEl.textContent = 'Confirmation sent! Check your new email to confirm the change.';
+    okEl.classList.add('show');
+    document.getElementById('settings-new-email').value = '';
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.classList.add('show');
+  }
+}
+
+/* ── Change Password ── */
+async function changePassword() {
+  const newPass     = document.getElementById('settings-new-pass').value;
+  const confirmPass = document.getElementById('settings-confirm-pass').value;
+  const errEl  = document.getElementById('settings-pass-error');
+  const okEl   = document.getElementById('settings-pass-success');
+  errEl.classList.remove('show');
+  okEl.classList.remove('show');
+
+  if (!newPass || !confirmPass) {
+    errEl.textContent = 'Fill in both password fields.';
+    errEl.classList.add('show');
+    return;
+  }
+  if (newPass.length < 6) {
+    errEl.textContent = 'Password must be at least 6 characters.';
+    errEl.classList.add('show');
+    return;
+  }
+  if (newPass !== confirmPass) {
+    errEl.textContent = 'Passwords do not match.';
+    errEl.classList.add('show');
+    return;
+  }
+
+  try {
+    await sbFetch('/auth/v1/user', {
+      method: 'PUT',
+      body: JSON.stringify({ password: newPass }),
+    });
+    okEl.textContent = '✅ Password updated successfully!';
+    okEl.classList.add('show');
+    document.getElementById('settings-new-pass').value = '';
+    document.getElementById('settings-confirm-pass').value = '';
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.classList.add('show');
+  }
 }
