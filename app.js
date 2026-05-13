@@ -816,11 +816,11 @@ function openDetail(id) {
       ['Block Size',  c.block],
       ['Bar Size',    c.bar],
       ['Preload',     c.preload],
-      ['Shock Comp.', c.comp],
+      ['Ride Height', c.ride],
       ['Shock Reb.',  c.reb],
+      ['Shock Comp.', c.comp],
       ['Tire Size',   c.tire],
       ['Air PSI',     c.psi],
-      ['Ride Height', c.ride],
     ];
     if (cn === 'lr') fields.push(['LR Spacing', c.spacing]);
     if (cn === 'rr') fields.push(['Stagger', c.stagger], ['RR Spacing', c.spacing]);
@@ -835,16 +835,15 @@ function openDetail(id) {
   // Race events HTML
   const evH = (s.race_events && s.race_events.length)
     ? s.race_events.map(e => {
-        const tireRows  = ['bar-size','turns','rebound','compression','PSI']
+        const tireRows  = ['pressure','turns','bar-size','compression','rebound']
           .filter(r => ['lf','rf','lr','rr'].some(c => e.tires && e.tires[r] && e.tires[r][c]));
         const staggerRR = e.tires && e.tires.stagger && e.tires.stagger.rr;
 
-        const tireLbl = { 'bar-size':'Bar Size', 'turns':'Turns', 'rebound':'Rebound', 'compression':'Compression', 'PSI':'PSI' };
         const ttbl = (tireRows.length || staggerRR) ? `
           <table class="tire-tbl" style="margin-top:8px;">
             <thead><tr><th></th><th>LF</th><th>RF</th><th>LR</th><th>RR</th></tr></thead>
             <tbody>
-              ${tireRows.map(r => `<tr><td>${tireLbl[r] || r}</td>${['lf','rf','lr','rr'].map(c =>
+              ${tireRows.map(r => `<tr><td>${r}</td>${['lf','rf','lr','rr'].map(c =>
                 `<td style="font-size:12px;text-align:center;">${(e.tires[r] && e.tires[r][c]) || '—'}</td>`
               ).join('')}</tr>`).join('')}
               ${staggerRR ? `<tr><td>Stagger</td><td>—</td><td>—</td><td>—</td><td style="font-size:12px;text-align:center;">${e.tires.stagger.rr}</td></tr>` : ''}
