@@ -17,7 +17,7 @@
     14. Detail View
     15. Lightbox & Toast
     16. Utility Classes
-    17. Animations
+    17. Animations.
 ════════════════════════════════════════ */
 
 
@@ -703,8 +703,8 @@ textarea::placeholder { color: var(--muted); }
   transition: transform .15s, border-color .15s;
   flex-shrink: 0;
 }
-.color-swatch:hover   { transform: scale(1.15); }
-.color-swatch.active  { border-color: var(--text); transform: scale(1.15); }
+.color-swatch:hover  { transform: scale(1.15); }
+.color-swatch.active { border-color: var(--text); transform: scale(1.15); }
 #cm-color-custom {
   width: 36px;
   height: 28px;
