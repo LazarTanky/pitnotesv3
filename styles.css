@@ -677,46 +677,28 @@ textarea::placeholder { color: var(--muted); }
   color: var(--accent);
   flex-shrink: 0;
 }
-.car-info h3 { font-family: var(--fh); font-size: 17px; font-weight: 700; text-transform: uppercase; }
-.car-info p  { font-size: 12px; color: var(--muted); }
-.car-actions { display: flex; gap: 6px; flex-shrink: 0; }
-
-/* Car color picker */
 .color-picker-row {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex-wrap: wrap;
 }
-.color-swatches {
-  display: flex;
-  gap: 7px;
-  flex-wrap: wrap;
-  flex: 1;
-}
-.color-swatch {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: 2px solid transparent;
-  cursor: pointer;
-  transition: transform .15s, border-color .15s;
-  flex-shrink: 0;
-}
-.color-swatch:hover  { transform: scale(1.15); }
-.color-swatch.active { border-color: var(--text); transform: scale(1.15); }
-#cm-color-custom {
-  width: 36px;
-  height: 28px;
-  padding: 0;
-  border: 2px solid var(--border);
-  border-radius: 7px;
-  background: none;
+#cm-color {
+  width: 44px;
+  height: 38px;
+  padding: 2px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
   cursor: pointer;
   flex-shrink: 0;
 }
-#cm-color-custom::-webkit-color-swatch-wrapper { padding: 2px; }
-#cm-color-custom::-webkit-color-swatch { border-radius: 4px; border: none; }
+.color-picker-label {
+  font-size: 13px;
+  color: var(--muted);
+}
+.car-info h3 { font-family: var(--fh); font-size: 17px; font-weight: 700; text-transform: uppercase; }
+.car-info p  { font-size: 12px; color: var(--muted); }
+.car-actions { display: flex; gap: 6px; flex-shrink: 0; }
 
 
 /* ────────────────────────────────────────
