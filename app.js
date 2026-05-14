@@ -16,7 +16,7 @@
     13.  Sessions — detail view
     14.  Tracks — CRUD + render
     15.  Stats — render
-    16.  Modals.
+    16.  Modals
     17.  Toast
     18.  Settings Modal
 ════════════════════════════════════════ */
@@ -131,11 +131,6 @@ let editCid = null;   // car being edited
 let editTid = null;   // track being edited
 
 let reCount = 0;   // race-event counter (used to generate unique input IDs)
-
-const CAR_COLOR_PRESETS = [
-  '#f07000','#ffaa00','#e03030','#3dbe6a','#2196f3',
-  '#9c27b0','#00bcd4','#ff4081','#ffffff','#aaaaaa',
-];
 
 
 /* ────────────────────────────────────────
@@ -288,39 +283,13 @@ function openCarModal(id = null) {
   document.getElementById('car-modal-title').textContent = id ? 'Edit Car' : 'Add Car';
 
   const car = id ? cars.find(c => c.id === id) : null;
-  document.getElementById('cm-num').value = car ? car.num : '';
+  document.getElementById('cm-num').value   = car ? car.num        : '';
   document.getElementById('cm-name').value  = car ? car.name  || '' : '';
   document.getElementById('cm-class').value = car ? car.cls   || '' : '';
+  document.getElementById('cm-color').value = car ? car.color || '#f07000' : '#f07000';
   document.getElementById('cm-notes').value = car ? car.notes || '' : '';
 
-  const selectedColor = (car && car.color) ? car.color : '#f07000';
-  buildColorSwatches(selectedColor);
-
   openModal('car-modal');
-}
-
-function buildColorSwatches(selectedColor) {
-  const container = document.getElementById('cm-swatches');
-  const customInput = document.getElementById('cm-color-custom');
-  container.innerHTML = '';
-
-  CAR_COLOR_PRESETS.forEach(hex => {
-    const sw = document.createElement('div');
-    sw.className = 'color-swatch' + (hex.toLowerCase() === selectedColor.toLowerCase() ? ' active' : '');
-    sw.style.background = hex;
-    sw.title = hex;
-    sw.onclick = () => {
-      container.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
-      sw.classList.add('active');
-      customInput.value = hex;
-    };
-    container.appendChild(sw);
-  });
-
-  customInput.value = selectedColor;
-  customInput.oninput = () => {
-    container.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
-  };
 }
 
 async function saveCar() {
@@ -331,8 +300,8 @@ async function saveCar() {
     num,
     name: document.getElementById('cm-name').value.trim(),
     cls: document.getElementById('cm-class').value.trim(),
+    color: document.getElementById('cm-color').value || '#f07000',
     notes: document.getElementById('cm-notes').value.trim(),
-    color: document.getElementById('cm-color-custom').value || '#f07000',
     user_id: CU.id,
   };
 
@@ -394,12 +363,11 @@ function renderCars() {
 
   cars.forEach(c => {
     const cnt = sessions.filter(s => s.car_id === c.id).length;
-    const color = c.color || '#f07000';
     const div = document.createElement('div');
     div.className = 'car-card';
     div.innerHTML = `
       <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;">
-        <div class="car-num" style="color:${color};border-color:${color};background:${color}22;">${c.num}</div>
+        <div class="car-num" style="border-color:${c.color || 'var(--accent)'};color:${c.color || 'var(--accent)'};">${c.num}</div>
         <div class="car-info">
           <h3>${c.name || c.num}</h3>
           <p>${c.cls || ''}${cnt ? ' · ' + cnt + ' session' + (cnt !== 1 ? 's' : '') : ''}</p>
