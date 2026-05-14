@@ -16,7 +16,7 @@
     13.  Sessions — detail view
     14.  Tracks — CRUD + render
     15.  Stats — render
-    16.  Modals
+    16.  Modals.
     17.  Toast
     18.  Settings Modal
 ════════════════════════════════════════ */
