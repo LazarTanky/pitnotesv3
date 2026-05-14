@@ -11,14 +11,16 @@
      8.  Cars — CRUD + render
      9.  Sessions — form helpers
     10.  Sessions — race events
-    11.  Sessions — save / edit / delete
-    12.  Sessions — render list
-    13.  Sessions — detail view
-    14.  Tracks — CRUD + render
-    15.  Stats — render
-    16.  Modals
-    17.  Toast
-    18.  Settings Modal
+    11.  Sessions — photos (session-attached)
+    12.  Sessions — save / edit / delete
+    13.  Sessions — render list
+    14.  Sessions — detail view
+    15.  Photos page — standalone upload
+    16.  Photos page — car photos modal
+    17.  Photos page — render grid
+    18.  Stats — render
+    19.  Modals & lightbox
+    20.  Toast
 ════════════════════════════════════════ */
 
 
@@ -123,14 +125,21 @@ function loadTokens() {
 ──────────────────────────────────────── */
 let cars = [];
 let sessions = [];
-let tracks = [];    // saved tracks with baseline setups
 let ACI = null;   // active car id (filter)
 let editSid = null;   // session being edited
 let detailId = null;  // session open in detail modal
 let editCid = null;   // car being edited
-let editTid = null;   // track being edited
 
+let pendingPhotos = [];  // base64 photos staged for new/edit session
 let reCount = 0;   // race-event counter (used to generate unique input IDs)
+
+const CAR_COLOR_PRESETS = [
+  '#f07000','#ffaa00','#e03030','#3dbe6a','#2196f3',
+  '#9c27b0','#00bcd4','#ff4081','#ffffff','#aaaaaa',
+];
+
+let standalonePhotos = [];   // staged for standalone photo upload
+let currentCarPhotosId = null; // car whose photo modal is open
 
 
 /* ────────────────────────────────────────
@@ -241,14 +250,11 @@ function showPage(name) {
 ──────────────────────────────────────── */
 async function loadAll() {
   try {
-    const [c, s, t] = await Promise.all([
+    const [c, s] = await Promise.all([
       fetch(`${SUPA_URL}/rest/v1/cars?select=*&order=created_at.desc`, {
         headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + ACCESS_TOKEN },
       }).then(r => r.json()),
       fetch(`${SUPA_URL}/rest/v1/sessions?select=*&order=created_at.desc`, {
-        headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + ACCESS_TOKEN },
-      }).then(r => r.json()),
-      fetch(`${SUPA_URL}/rest/v1/tracks?select=*&order=created_at.desc`, {
         headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + ACCESS_TOKEN },
       }).then(r => r.json()),
     ]);
@@ -257,21 +263,18 @@ async function loadAll() {
 
     cars = Array.isArray(c) ? c : [];
     sessions = Array.isArray(s) ? s : [];
-    tracks = Array.isArray(t) ? t : [];
   } catch (e) {
     console.error('loadAll error:', e);
     cars = [];
     sessions = [];
-    tracks = [];
     showToast('Load error: ' + e.message);
   }
 
   renderCars();
   renderSessions();
-  renderTracksPage();
+  renderPhotos();
   renderStats();
   populateCarDD();
-  populateTrackDD();
 }
 
 
@@ -288,7 +291,36 @@ function openCarModal(id = null) {
   document.getElementById('cm-class').value = car ? car.cls   || '' : '';
   document.getElementById('cm-notes').value = car ? car.notes || '' : '';
 
+  // Build color swatches
+  const selectedColor = (car && car.color) ? car.color : '#f07000';
+  buildColorSwatches(selectedColor);
+
   openModal('car-modal');
+}
+
+function buildColorSwatches(selectedColor) {
+  const container = document.getElementById('cm-swatches');
+  const customInput = document.getElementById('cm-color-custom');
+  container.innerHTML = '';
+
+  CAR_COLOR_PRESETS.forEach(hex => {
+    const sw = document.createElement('div');
+    sw.className = 'color-swatch' + (hex.toLowerCase() === selectedColor.toLowerCase() ? ' active' : '');
+    sw.style.background = hex;
+    sw.title = hex;
+    sw.onclick = () => {
+      container.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+      sw.classList.add('active');
+      customInput.value = hex;
+    };
+    container.appendChild(sw);
+  });
+
+  // If selected color is not a preset, mark none active but set custom input
+  customInput.value = selectedColor;
+  customInput.oninput = () => {
+    container.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+  };
 }
 
 async function saveCar() {
@@ -300,6 +332,7 @@ async function saveCar() {
     name: document.getElementById('cm-name').value.trim(),
     cls: document.getElementById('cm-class').value.trim(),
     notes: document.getElementById('cm-notes').value.trim(),
+    color: document.getElementById('cm-color-custom').value || '#f07000',
     user_id: CU.id,
   };
 
@@ -361,11 +394,12 @@ function renderCars() {
 
   cars.forEach(c => {
     const cnt = sessions.filter(s => s.car_id === c.id).length;
+    const color = c.color || '#f07000';
     const div = document.createElement('div');
     div.className = 'car-card';
     div.innerHTML = `
       <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;">
-        <div class="car-num">${c.num}</div>
+        <div class="car-num" style="color:${color};border-color:${color};background:${color}22;">${c.num}</div>
         <div class="car-info">
           <h3>${c.name || c.num}</h3>
           <p>${c.cls || ''}${cnt ? ' · ' + cnt + ' session' + (cnt !== 1 ? 's' : '') : ''}</p>
@@ -373,6 +407,7 @@ function renderCars() {
       </div>
       <div class="car-actions">
         <button class="btn ghost sm"     onclick="setActiveCar('${c.id}')">Filter</button>
+        <button class="btn ghost sm"     onclick="openCarPhotos('${c.id}')">📷</button>
         <button class="btn secondary sm" onclick="openCarModal('${c.id}')">Edit</button>
         <button class="btn danger sm"    onclick="deleteCar('${c.id}')">✕</button>
       </div>`;
@@ -385,15 +420,6 @@ function populateCarDD() {
   const options = '<option value="">— No car —</option>'
     + cars.map(c => `<option value="${c.id}">#${c.num} ${c.name || ''}</option>`).join('');
   document.getElementById('ns-car').innerHTML = options;
-}
-
-// Populate the track dropdown in the new session modal
-function populateTrackDD() {
-  const sel = document.getElementById('ns-track');
-  const current = sel.value;
-  sel.innerHTML = '<option value="">— Select Track —</option>'
-    + tracks.map(t => `<option value="${t.id}">${t.name}${t.size ? ' — ' + t.size : ''}</option>`).join('');
-  if (current) sel.value = current;
 }
 
 
@@ -417,10 +443,6 @@ function openNewSession() {
   document.getElementById('ns-date').value = new Date().toISOString().split('T')[0];
   if (ACI) document.getElementById('ns-car').value = ACI;
 
-  // Wire track dropdown to autofill baseline setup
-  const trackSel = document.getElementById('ns-track');
-  trackSel.onchange = function() { autofillBaseline(this.value); };
-
   document.getElementById('re-container').innerHTML = '';
   reCount = 0;
   addRaceEvent();
@@ -428,57 +450,15 @@ function openNewSession() {
   openModal('ns-modal');
 }
 
-function autofillBaseline(trackId) {
-  if (!trackId) return;
-  const t = tracks.find(x => x.id === trackId);
-  if (!t || !t.baseline) return;
-
-  const b = t.baseline;
-  // Fill corner fields
-  CORNER_NAMES.forEach(cn => {
-    CORNER_FIELDS.forEach(f => {
-      const el = document.getElementById(cn + '-' + f);
-      if (el && b.corners && b.corners[cn]) el.value = b.corners[cn][f] || '';
-    });
-  });
-  if (b.corners) {
-    if (b.corners.rr) {
-      const rrs = document.getElementById('rr-stagger'); if (rrs) rrs.value = b.corners.rr.stagger || '';
-      const rrsp = document.getElementById('rr-spacing'); if (rrsp) rrsp.value = b.corners.rr.spacing || '';
-    }
-    if (b.corners.lr) {
-      const lrsp = document.getElementById('lr-spacing'); if (lrsp) lrsp.value = b.corners.lr.spacing || '';
-    }
-  }
-  // Fill bolt-ons
-  if (b.bolt_ons) {
-    const lrr = document.getElementById('lr-radius'); if (lrr) lrr.value = b.bolt_ons.lr_radius || '';
-    const rrr = document.getElementById('rr-radius'); if (rrr) rrr.value = b.bolt_ons.rr_radius || '';
-    const jac = document.getElementById('rr-jacobs'); if (jac) jac.value = b.bolt_ons.jacobs_ladder || '';
-    const fph = document.getElementById('front-panhard'); if (fph) fph.value = b.bolt_ons.front_panhard || '';
-  }
-  // Fill engine fields
-  const fields = ['engine','gear','exhaust','injection','fp','wing'];
-  fields.forEach(f => {
-    const el = document.getElementById('ns-' + f);
-    if (el && b[f]) el.value = b[f];
-  });
-  showToast('Baseline setup loaded! ✓');
-}
-
 function clearForm() {
   // Basic event info + engine fields
   [
-    'ns-date', 'ns-driver', 'ns-class', 'ns-condition',
+    'ns-track', 'ns-date', 'ns-driver', 'ns-class', 'ns-condition',
     'ns-engine', 'ns-gear', 'ns-exhaust', 'ns-injection', 'ns-fp', 'ns-wing', 'ns-notes',
   ].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
-
-  // Reset track dropdown
-  const trackSel = document.getElementById('ns-track');
-  if (trackSel) trackSel.value = '';
 
   // Corner grid inputs
   CORNER_NAMES.forEach(cn => {
@@ -499,6 +479,8 @@ function clearForm() {
   });
 
   document.getElementById('ns-car').value = '';
+  pendingPhotos = [];
+  renderPending();
 }
 
 
@@ -600,12 +582,37 @@ function collectRE() {
 
 
 /* ────────────────────────────────────────
-   11. SESSIONS — SAVE / EDIT / DELETE
+   11. SESSIONS — PHOTOS (SESSION-ATTACHED)
+──────────────────────────────────────── */
+function handlePhotos(e) {
+  Array.from(e.target.files).forEach(f => {
+    const reader = new FileReader();
+    reader.onload = ev => { pendingPhotos.push(ev.target.result); renderPending(); };
+    reader.readAsDataURL(f);
+  });
+  e.target.value = '';
+}
+
+function renderPending() {
+  const grid = document.getElementById('photo-preview');
+  grid.innerHTML = '';
+  pendingPhotos.forEach((src, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'preview-wrap';
+    wrap.innerHTML = `
+      <img src="${src}">
+      <button class="preview-remove" onclick="pendingPhotos.splice(${i},1);renderPending()">✕</button>`;
+    grid.appendChild(wrap);
+  });
+}
+
+
+/* ────────────────────────────────────────
+   12. SESSIONS — SAVE / EDIT / DELETE
 ──────────────────────────────────────── */
 async function saveSession() {
-  const trackId = gv('ns-track');
-  if (!trackId) { showToast('Select a track!'); return; }
-  const trackObj = tracks.find(t => t.id === trackId);
+  const track = gv('ns-track');
+  if (!track) { showToast('Track name required!'); return; }
 
   // Collect corner data
   const corners = {};
@@ -626,8 +633,7 @@ async function saveSession() {
   const payload = {
     user_id: CU.id,
     car_id: gv('ns-car') || null,
-    track_id: trackId,
-    track: trackObj ? trackObj.name : '',
+    track,
     date: gv('ns-date'),
     driver: gv('ns-driver'),
     cls: gv('ns-class'),
@@ -642,6 +648,7 @@ async function saveSession() {
     bolt_ons,
     race_events: collectRE(),
     notes: gv('ns-notes'),
+    photos: pendingPhotos,
   };
 
   try {
@@ -656,6 +663,7 @@ async function saveSession() {
     }
     closeModal('ns-modal');
     renderSessions();
+    renderPhotos();
     renderStats();
     showToast('Session saved! 🏁');
   } catch (e) {
@@ -672,16 +680,7 @@ function editSession() {
   editSid = s.id;
 
   document.getElementById('ns-title').textContent = 'Edit Session';
-  // Set track dropdown — use track_id if stored, else try to match by name
-  const trackSel = document.getElementById('ns-track');
-  trackSel.onchange = function() { autofillBaseline(this.value); };
-  if (s.track_id) {
-    trackSel.value = s.track_id;
-  } else if (s.track) {
-    const match = tracks.find(t => t.name === s.track);
-    if (match) trackSel.value = match.id;
-  }
-
+  document.getElementById('ns-track').value = s.track  || '';
   document.getElementById('ns-date').value = s.date   || '';
   document.getElementById('ns-driver').value = s.driver || '';
   document.getElementById('ns-car').value = s.car_id || '';
@@ -732,6 +731,8 @@ function editSession() {
   if (!s.race_events || !s.race_events.length) addRaceEvent();
 
   document.getElementById('ns-notes').value = s.notes || '';
+  pendingPhotos = [...(s.photos || [])];
+  renderPending();
 
   openModal('ns-modal');
 }
@@ -744,6 +745,7 @@ async function deleteSession() {
     sessions = sessions.filter(s => s.id !== detailId);
     closeModal('detail-modal');
     renderSessions();
+    renderPhotos();
     renderStats();
     showToast('Session deleted.');
   } catch (e) {
@@ -793,13 +795,20 @@ function renderSessions() {
     const finishes = (s.race_events || []).map(e => parseInt(e.finish)).filter(n => !isNaN(n));
     const fchip = finishes.length ? `<span class="chip ac">P${Math.min(...finishes)}</span>` : '';
 
+    const thumbs = (s.photos && s.photos.length)
+      ? s.photos.slice(0, 3).map(p =>
+          `<img class="photo-thumb" src="${p}" onclick="event.stopPropagation();openLightbox('${p}')">`
+        ).join('')
+      : '';
+
     const card = document.createElement('div');
     card.className = 'session-card';
     card.style.animationDelay = (i * 0.04) + 's';
+    if (car && car.color) card.style.borderLeftColor = car.color;
     card.onclick = () => openDetail(s.id);
     card.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-        <div class="card-track">${s.track || '—'}</div>
+        <div class="card-track">${s.track}</div>
         <div style="font-size:12px;color:var(--muted);">${ds}</div>
       </div>
       <div class="card-meta">
@@ -808,7 +817,8 @@ function renderSessions() {
         ${s.cond ? `<span class="chip">${s.cond}</span>` : ''}
         ${fchip}
       </div>
-      ${s.notes ? `<div class="card-note">${s.notes}</div>` : ''}`;
+      ${s.notes ? `<div class="card-note">${s.notes}</div>` : ''}
+      ${thumbs  ? `<div class="thumb-row">${thumbs}</div>` : ''}`;
 
     list.appendChild(card);
   });
@@ -885,6 +895,14 @@ function openDetail(id) {
       }).join('')
     : '';
 
+  const photosH = (s.photos && s.photos.length)
+    ? `<div class="detail-section"><h4>📷 Photos</h4>
+        <div class="preview-grid">
+          ${s.photos.map(p => `<div class="preview-wrap" onclick="openLightbox('${p}')"><img src="${p}"></div>`).join('')}
+        </div>
+       </div>`
+    : '';
+
   document.getElementById('detail-body').innerHTML = `
     <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px;">
       ${ds     ? `<span class="chip">${ds}</span>` : ''}
@@ -909,181 +927,190 @@ function openDetail(id) {
           ${rows([['Engine',s.engine],['Gearing',s.gear],['Exhaust',s.exhaust],['Injection',s.injection],['Fuel Pressure',s.fp],['Wing Angle',s.wing]])}
          </div>` : ''}
     ${evH     ? `<div class="detail-section"><h4>🏁 Race Events</h4>${evH}</div>` : ''}
-    ${s.notes ? `<div class="detail-section"><h4>📝 Notes</h4><div class="detail-notes">${s.notes}</div></div>` : ''}`;
+    ${s.notes ? `<div class="detail-section"><h4>📝 Notes</h4><div class="detail-notes">${s.notes}</div></div>` : ''}
+    ${photosH}`;
 
   openModal('detail-modal');
 }
 
 
 /* ────────────────────────────────────────
-   14. TRACKS — CRUD + RENDER
+   15. PHOTOS PAGE — STANDALONE UPLOAD
 ──────────────────────────────────────── */
-const TM_CORNER_NAMES = ['lf', 'rf', 'lr', 'rr'];
-const TM_CORNER_FIELDS = ['block', 'bar', 'preload', 'ride', 'reb', 'comp', 'psi', 'tire'];
+function openPhotoUpload() {
+  standalonePhotos = [];
+  document.getElementById('pu-preview').innerHTML = '';
+  document.getElementById('pu-caption').value = '';
 
-function openTrackModal(id = null) {
-  editTid = id;
-  document.getElementById('track-modal-title').textContent = id ? 'Edit Track' : 'Add Track';
+  const sel = document.getElementById('pu-car');
+  sel.innerHTML = '<option value="">— No car —</option>'
+    + cars.map(c => `<option value="${c.id}">#${c.num} ${c.name || ''}</option>`).join('');
+  sel.value = '';
 
-  const t = id ? tracks.find(x => x.id === id) : null;
-  document.getElementById('tm-name').value     = t ? t.name     || '' : '';
-  document.getElementById('tm-location').value = t ? t.location || '' : '';
-  document.getElementById('tm-size').value     = t ? t.size     || '' : '';
-  document.getElementById('tm-notes').value    = t ? t.notes    || '' : '';
-
-  // Clear / restore baseline corner fields
-  TM_CORNER_NAMES.forEach(cn => {
-    TM_CORNER_FIELDS.forEach(f => {
-      const el = document.getElementById('tm-' + cn + '-' + f);
-      if (el) el.value = (t && t.baseline && t.baseline.corners && t.baseline.corners[cn])
-        ? t.baseline.corners[cn][f] || '' : '';
-    });
-  });
-  // Extra corner fields
-  const tmLrSp = document.getElementById('tm-lr-spacing');
-  if (tmLrSp) tmLrSp.value = (t && t.baseline && t.baseline.corners && t.baseline.corners.lr) ? t.baseline.corners.lr.spacing || '' : '';
-  const tmRrSt = document.getElementById('tm-rr-stagger');
-  if (tmRrSt) tmRrSt.value = (t && t.baseline && t.baseline.corners && t.baseline.corners.rr) ? t.baseline.corners.rr.stagger || '' : '';
-  const tmRrSp = document.getElementById('tm-rr-spacing');
-  if (tmRrSp) tmRrSp.value = (t && t.baseline && t.baseline.corners && t.baseline.corners.rr) ? t.baseline.corners.rr.spacing || '' : '';
-
-  // Bolt-ons
-  ['tm-lr-radius','tm-rr-radius','tm-rr-jacobs','tm-front-panhard'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = '';
-  });
-  if (t && t.baseline && t.baseline.bolt_ons) {
-    const b = t.baseline.bolt_ons;
-    document.getElementById('tm-lr-radius').value     = b.lr_radius     || '';
-    document.getElementById('tm-rr-radius').value     = b.rr_radius     || '';
-    document.getElementById('tm-rr-jacobs').value     = b.jacobs_ladder || '';
-    document.getElementById('tm-front-panhard').value = b.front_panhard || '';
-  }
-
-  // Engine fields
-  ['engine','gear','exhaust','injection','fp','wing'].forEach(f => {
-    const el = document.getElementById('tm-' + f);
-    if (el) el.value = (t && t.baseline && t.baseline[f]) ? t.baseline[f] : '';
-  });
-
-  openModal('track-modal');
+  openModal('photo-upload-modal');
 }
 
-function tmGv(id) {
-  const el = document.getElementById(id);
-  return el ? el.value.trim() : '';
+function handleStandalonePhotos(e) {
+  Array.from(e.target.files).forEach(f => {
+    const reader = new FileReader();
+    reader.onload = ev => { standalonePhotos.push(ev.target.result); renderStandalonePreview(); };
+    reader.readAsDataURL(f);
+  });
+  e.target.value = '';
 }
 
-async function saveTrack() {
-  const name = tmGv('tm-name');
-  if (!name) { showToast('Track name required!'); return; }
-
-  const corners = {};
-  TM_CORNER_NAMES.forEach(cn => {
-    corners[cn] = {};
-    TM_CORNER_FIELDS.forEach(f => { corners[cn][f] = tmGv('tm-' + cn + '-' + f); });
+function renderStandalonePreview() {
+  const grid = document.getElementById('pu-preview');
+  grid.innerHTML = '';
+  standalonePhotos.forEach((src, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'preview-wrap';
+    wrap.innerHTML = `
+      <img src="${src}">
+      <button class="preview-remove" onclick="standalonePhotos.splice(${i},1);renderStandalonePreview()">✕</button>`;
+    grid.appendChild(wrap);
   });
-  corners.lr.spacing = tmGv('tm-lr-spacing');
-  corners.rr.stagger = tmGv('tm-rr-stagger');
-  corners.rr.spacing = tmGv('tm-rr-spacing');
+}
 
-  const bolt_ons = {
-    lr_radius:     tmGv('tm-lr-radius'),
-    rr_radius:     tmGv('tm-rr-radius'),
-    jacobs_ladder: tmGv('tm-rr-jacobs'),
-    front_panhard: tmGv('tm-front-panhard'),
-  };
+async function saveStandalonePhotos() {
+  if (!standalonePhotos.length) { showToast('Add at least one photo!'); return; }
 
-  const baseline = {
-    corners,
-    bolt_ons,
-    engine:    tmGv('tm-engine'),
-    gear:      tmGv('tm-gear'),
-    exhaust:   tmGv('tm-exhaust'),
-    injection: tmGv('tm-injection'),
-    fp:        tmGv('tm-fp'),
-    wing:      tmGv('tm-wing'),
-  };
+  const carId = document.getElementById('pu-car').value || null;
+  const caption = document.getElementById('pu-caption').value.trim();
 
   const payload = {
     user_id: CU.id,
-    name,
-    location: tmGv('tm-location'),
-    size:     tmGv('tm-size'),
-    notes:    tmGv('tm-notes'),
-    baseline,
+    car_id: carId,
+    track: caption || 'Standalone Photos',
+    date: new Date().toISOString().split('T')[0],
+    photos: standalonePhotos,
+    corners: {},
+    race_events: [],
+    notes: caption,
   };
 
   try {
-    if (editTid) {
-      const res = await sbUpdate('tracks', editTid, payload);
-      const updated = Array.isArray(res) ? res[0] : res;
-      tracks = tracks.map(t => t.id === editTid ? updated : t);
-    } else {
-      const res = await sbInsert('tracks', payload);
-      const inserted = Array.isArray(res) ? res[0] : res;
-      tracks.unshift(inserted);
-    }
-    closeModal('track-modal');
-    renderTracksPage();
-    populateTrackDD();
+    const res = await sbInsert('sessions', payload);
+    const inserted = Array.isArray(res) ? res[0] : res;
+    sessions.unshift(inserted);
+    closeModal('photo-upload-modal');
+    renderPhotos();
     renderStats();
-    showToast('Track saved! 📍');
+    showToast('Photos saved! 📷');
   } catch (e) {
     showToast('Error: ' + e.message);
   }
 }
 
-async function deleteTrack(id) {
-  if (!confirm('Delete this track?')) return;
-  try {
-    await sbDelete('tracks', id);
-    tracks = tracks.filter(t => t.id !== id);
-    renderTracksPage();
-    populateTrackDD();
-    renderStats();
-    showToast('Track deleted.');
-  } catch (e) {
-    showToast('Error: ' + e.message);
-  }
+
+/* ────────────────────────────────────────
+   16. PHOTOS PAGE — CAR PHOTOS MODAL
+──────────────────────────────────────── */
+function openCarPhotos(carId) {
+  currentCarPhotosId = carId;
+  const car = cars.find(c => c.id === carId);
+  document.getElementById('car-photos-title').textContent = '#' + car.num + ' Photos';
+  renderCarPhotosBody();
+  openModal('car-photos-modal');
 }
 
-function renderTracksPage() {
-  const list = document.getElementById('tracks-list-page');
-  list.innerHTML = '';
+function renderCarPhotosBody() {
+  const carSessions = sessions.filter(s => s.car_id === currentCarPhotosId);
+  const allPhotos = carSessions.flatMap(s =>
+    (s.photos || []).map(p => ({ src: p, track: s.track, date: s.date }))
+  );
 
-  if (!tracks.length) {
-    list.innerHTML = `<div class="empty-state"><div class="icon">📍</div><p>No tracks yet.<br>Tap <b>+ Add Track</b> to get started.</p></div>`;
+  const body = document.getElementById('car-photos-body');
+  if (!allPhotos.length) {
+    body.innerHTML = '<div class="empty-state"><div class="icon">📷</div><p>No photos for this car yet.</p></div>';
+    return;
+  }
+  body.innerHTML = `
+    <div class="preview-grid">
+      ${allPhotos.map(p => `<div class="preview-wrap" onclick="openLightbox('${p.src}')"><img src="${p.src}"></div>`).join('')}
+    </div>`;
+}
+
+function addCarPhoto() {
+  standalonePhotos = [];
+  document.getElementById('pu-preview').innerHTML = '';
+  document.getElementById('pu-caption').value     = '';
+
+  const sel = document.getElementById('pu-car');
+  sel.innerHTML = '<option value="">— No car —</option>'
+    + cars.map(c => `<option value="${c.id}">#${c.num} ${c.name || ''}</option>`).join('');
+  sel.value = currentCarPhotosId || '';
+
+  closeModal('car-photos-modal');
+  openModal('photo-upload-modal');
+}
+
+// Re-uses standalone photo handler
+function handleCarPhotoAdd(e) {
+  handleStandalonePhotos(e);
+}
+
+
+/* ────────────────────────────────────────
+   17. PHOTOS PAGE — RENDER GRID
+──────────────────────────────────────── */
+function renderPhotos() {
+  const grid = document.getElementById('photos-grid');
+
+  // Build filter bar
+  const fb = document.getElementById('photo-filter-bar');
+  fb.innerHTML = '';
+  let photoFilter = grid.dataset.filter || 'all';
+
+  const allChip = document.createElement('div');
+  allChip.className = 'filter-chip' + (photoFilter === 'all' ? ' active' : '');
+  allChip.textContent = 'All';
+  allChip.onclick = () => { grid.dataset.filter = 'all'; renderPhotos(); };
+  fb.appendChild(allChip);
+
+  const standaloneChip = document.createElement('div');
+  standaloneChip.className = 'filter-chip' + (photoFilter === 'standalone' ? ' active' : '');
+  standaloneChip.textContent = 'Standalone';
+  standaloneChip.onclick = () => { grid.dataset.filter = 'standalone'; renderPhotos(); };
+  fb.appendChild(standaloneChip);
+
+  cars.forEach(c => {
+    const ch = document.createElement('div');
+    ch.className = 'filter-chip' + (photoFilter === c.id ? ' active' : '');
+    ch.textContent = '#' + c.num;
+    ch.onclick = () => { grid.dataset.filter = c.id; renderPhotos(); };
+    fb.appendChild(ch);
+  });
+
+  // Filter sessions by car
+  let filtered = sessions;
+  if (photoFilter === 'standalone') filtered = sessions.filter(s => !s.car_id);
+  else if (photoFilter !== 'all')        filtered = sessions.filter(s => s.car_id === photoFilter);
+
+  const allPhotos = filtered.flatMap(s => (s.photos || []));
+  grid.innerHTML  = '';
+
+  if (!allPhotos.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="icon">📷</div><p>No photos yet.<br>Tap <b>+ Add</b> to upload.</p></div>`;
     return;
   }
 
-  tracks.forEach(t => {
-    const cnt = sessions.filter(s => s.track_id === t.id || s.track === t.name).length;
-    const div = document.createElement('div');
-    div.className = 'car-card';
-    div.innerHTML = `
-      <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;">
-        <div class="car-num" style="font-size:24px;width:48px;height:48px;">📍</div>
-        <div class="car-info">
-          <h3>${t.name}</h3>
-          <p>${[t.size, t.location].filter(Boolean).join(' · ')}${cnt ? ' · ' + cnt + ' session' + (cnt !== 1 ? 's' : '') : ''}</p>
-        </div>
-      </div>
-      <div class="car-actions">
-        <button class="btn secondary sm" onclick="openTrackModal('${t.id}')">Edit</button>
-        <button class="btn danger sm"    onclick="deleteTrack('${t.id}')">✕</button>
-      </div>`;
-    list.appendChild(div);
+  allPhotos.forEach(src => {
+    const wrap = document.createElement('div');
+    wrap.style = 'aspect-ratio:1;border-radius:6px;overflow:hidden;cursor:pointer;';
+    wrap.innerHTML = `<img src="${src}" style="width:100%;height:100%;object-fit:cover;" onclick="openLightbox('${src}')">`;
+    grid.appendChild(wrap);
   });
 }
 
 
 /* ────────────────────────────────────────
-   15. STATS — RENDER
+   18. STATS — RENDER
 ──────────────────────────────────────── */
 function renderStats() {
   const total = sessions.length;
-  const trackCount = tracks.length;
+  const photos = sessions.reduce((n, s) => n + (s.photos ? s.photos.length : 0), 0);
+  const tracks = [...new Set(sessions.map(s => s.track).filter(Boolean))];
   const finishes = sessions.flatMap(s =>
     (s.race_events || []).map(e => parseInt(e.finish))
   ).filter(n => !isNaN(n));
@@ -1091,16 +1118,16 @@ function renderStats() {
 
   document.getElementById('stats-cards').innerHTML = `
     <div class="stat-card"><div class="num">${total}</div><div class="lbl">Sessions</div></div>
-    <div class="stat-card"><div class="num">${trackCount}</div><div class="lbl">Tracks</div></div>
-    <div class="stat-card"><div class="num">${best === '—' ? '—' : 'P' + best}</div><div class="lbl">Best Finish</div></div>
-    <div class="stat-card"><div class="num">${cars.length}</div><div class="lbl">Cars</div></div>`;
+    <div class="stat-card"><div class="num">${tracks.length}</div><div class="lbl">Tracks</div></div>
+    <div class="stat-card"><div class="num">${photos}</div><div class="lbl">Photos</div></div>
+    <div class="stat-card"><div class="num">${best === '—' ? '—' : 'P' + best}</div><div class="lbl">Best Finish</div></div>`;
 
-  document.getElementById('stats-tracks-list').innerHTML = tracks.length
+  document.getElementById('tracks-list').innerHTML = tracks.length
     ? tracks.map(t => {
-        const cnt = sessions.filter(s => s.track_id === t.id || s.track === t.name).length;
-        return `<div class="detail-row"><span>${t.name}</span><span>${cnt} session${cnt !== 1 ? 's' : ''}</span></div>`;
+        const cnt = sessions.filter(s => s.track === t).length;
+        return `<div class="detail-row"><span>${t}</span><span>${cnt} session${cnt !== 1 ? 's' : ''}</span></div>`;
       }).join('')
-    : '<p style="color:var(--muted);font-size:13px;padding:8px 0;">No tracks added yet.</p>';
+    : '<p style="color:var(--muted);font-size:13px;padding:8px 0;">No tracks logged yet.</p>';
 
   document.getElementById('best-finish').innerHTML = best !== '—'
     ? `<div class="detail-row"><span>Best Finish</span><span>P${best}</span></div>`
@@ -1109,7 +1136,7 @@ function renderStats() {
 
 
 /* ────────────────────────────────────────
-   16. MODALS
+   19. MODALS & LIGHTBOX
 ──────────────────────────────────────── */
 function openModal(id)  { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
@@ -1123,9 +1150,17 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
   });
 });
 
+function openLightbox(src) {
+  document.getElementById('lightbox-img').src = src;
+  document.getElementById('lightbox').classList.add('open');
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+}
+
 
 /* ────────────────────────────────────────
-   17. TOAST
+   20. TOAST
 ──────────────────────────────────────── */
 function showToast(msg) {
   const t = document.getElementById('toast');
@@ -1136,7 +1171,7 @@ function showToast(msg) {
 
 
 /* ────────────────────────────────────────
-   18. SETTINGS MODAL
+   21. SETTINGS MODAL
 ──────────────────────────────────────── */
 function openSettingsModal() {
   // Clear any previous messages
