@@ -17,7 +17,7 @@
     14. Detail View
     15. Lightbox & Toast
     16. Utility Classes
-    17. Animations.
+    17. Animations
 ════════════════════════════════════════ */
 
 
@@ -680,6 +680,43 @@ textarea::placeholder { color: var(--muted); }
 .car-info h3 { font-family: var(--fh); font-size: 17px; font-weight: 700; text-transform: uppercase; }
 .car-info p  { font-size: 12px; color: var(--muted); }
 .car-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+/* Car color picker */
+.color-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.color-swatches {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+.color-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform .15s, border-color .15s;
+  flex-shrink: 0;
+}
+.color-swatch:hover   { transform: scale(1.15); }
+.color-swatch.active  { border-color: var(--text); transform: scale(1.15); }
+#cm-color-custom {
+  width: 36px;
+  height: 28px;
+  padding: 0;
+  border: 2px solid var(--border);
+  border-radius: 7px;
+  background: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+#cm-color-custom::-webkit-color-swatch-wrapper { padding: 2px; }
+#cm-color-custom::-webkit-color-swatch { border-radius: 4px; border: none; }
 
 
 /* ────────────────────────────────────────
