@@ -283,10 +283,9 @@ function openCarModal(id = null) {
   document.getElementById('car-modal-title').textContent = id ? 'Edit Car' : 'Add Car';
 
   const car = id ? cars.find(c => c.id === id) : null;
-  document.getElementById('cm-num').value   = car ? car.num        : '';
+  document.getElementById('cm-num').value = car ? car.num : '';
   document.getElementById('cm-name').value  = car ? car.name  || '' : '';
   document.getElementById('cm-class').value = car ? car.cls   || '' : '';
-  document.getElementById('cm-color').value = car ? car.color || '#f07000' : '#f07000';
   document.getElementById('cm-notes').value = car ? car.notes || '' : '';
 
   openModal('car-modal');
@@ -300,7 +299,6 @@ async function saveCar() {
     num,
     name: document.getElementById('cm-name').value.trim(),
     cls: document.getElementById('cm-class').value.trim(),
-    color: document.getElementById('cm-color').value || '#f07000',
     notes: document.getElementById('cm-notes').value.trim(),
     user_id: CU.id,
   };
@@ -367,7 +365,7 @@ function renderCars() {
     div.className = 'car-card';
     div.innerHTML = `
       <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;">
-        <div class="car-num" style="border-color:${c.color || 'var(--accent)'};color:${c.color || 'var(--accent)'};">${c.num}</div>
+        <div class="car-num">${c.num}</div>
         <div class="car-info">
           <h3>${c.name || c.num}</h3>
           <p>${c.cls || ''}${cnt ? ' · ' + cnt + ' session' + (cnt !== 1 ? 's' : '') : ''}</p>
@@ -555,6 +553,17 @@ function addRaceEvent(d = null) {
           <td><input id="re-stagger-rr-${i}" value="${staggerVal}"></td>
           <td></td><td></td><td></td>
         </tr>
+        <tr>
+          <td>LR Spacing</td>
+          <td></td><td></td>
+          <td><input id="re-lr-spacing-${i}" value="${d && d.lr_spacing ? d.lr_spacing : ''}"></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>RR Spacing</td>
+          <td></td><td></td><td></td>
+          <td><input id="re-rr-spacing-${i}" value="${d && d.rr_spacing ? d.rr_spacing : ''}"></td>
+        </tr>
       </tbody>
     </table>
     <div style="margin-top:8px;">
@@ -593,6 +602,8 @@ function collectRE() {
       laps: gv(`re-laps-${i}`),
       cond: gv(`re-cond-${i}`),
       note: gv(`re-note-${i}`),
+      lr_spacing: gv(`re-lr-spacing-${i}`),
+      rr_spacing: gv(`re-rr-spacing-${i}`),
       tires,
     });
   });
@@ -798,7 +809,6 @@ function renderSessions() {
     const card = document.createElement('div');
     card.className = 'session-card';
     card.style.animationDelay = (i * 0.04) + 's';
-    if (car && car.color) card.style.borderLeftColor = car.color;
     card.onclick = () => openDetail(s.id);
     card.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:flex-start;">
@@ -881,7 +891,7 @@ function openDetail(id) {
           </table>` : '';
 
         return `<div class="re-block">
-          ${rows([['Start',e.start],['Finish',e.finish],['# Cars',e.numCars],['Laps',e.laps],['Track Condition',e.cond]])}
+          ${rows([['Start',e.start],['Finish',e.finish],['# Cars',e.numCars],['Laps',e.laps],['Track Condition',e.cond],['LR Spacing',e.lr_spacing],['RR Spacing',e.rr_spacing]])}
           ${ttbl}
           ${e.note ? `<div style="margin-top:7px;font-size:13px;color:var(--muted);">${e.note}</div>` : ''}
         </div>`;
@@ -896,7 +906,7 @@ function openDetail(id) {
       ${s.cond ? `<span class="chip">${s.cond}</span>` : ''}
       ${s.driver ? `<span class="chip">${s.driver}</span>` : ''}
     </div>
-    ${cornersH ? `<div class="detail-section"><h4>🔧 Chassis Setup</h4><div class="c-detail-grid">${cornersH}</div></div>` : ''}
+    ${(cornersH || s.wing) ? `<div class="detail-section"><h4>🔧 Chassis Setup</h4>${cornersH ? `<div class="c-detail-grid">${cornersH}</div>` : ''}${s.wing ? `<div class="detail-row"><span>Wing Angle</span><span>${s.wing}</span></div>` : ''}</div>` : ''}
     ${(s.bolt_ons && (s.bolt_ons.lr_radius || s.bolt_ons.rr_radius || s.bolt_ons.jacobs_ladder || s.bolt_ons.front_panhard))
       || (s.corners && ((s.corners.lr && s.corners.lr.radius) || (s.corners.rr && (s.corners.rr.radius || s.corners.rr.jacobs))))
       ? `<div class="detail-section"><h4>🔩 Bolt-Ons</h4>
@@ -907,9 +917,9 @@ function openDetail(id) {
           ['Front Panhard',  s.bolt_ons ? s.bolt_ons.front_panhard : ''],
         ])}
       </div>` : ''}
-    ${(s.engine || s.gear || s.exhaust || s.injection || s.fp || s.wing)
+    ${(s.engine || s.gear || s.exhaust || s.injection || s.fp)
       ? `<div class="detail-section"><h4>⚙️ Engine / Other</h4>
-          ${rows([['Engine',s.engine],['Gearing',s.gear],['Exhaust',s.exhaust],['Injection',s.injection],['Fuel Pressure',s.fp],['Wing Angle',s.wing]])}
+          ${rows([['Engine',s.engine],['Gearing',s.gear],['Exhaust',s.exhaust],['Injection',s.injection],['Fuel Pressure',s.fp]])}
          </div>` : ''}
     ${evH     ? `<div class="detail-section"><h4>🏁 Race Events</h4>${evH}</div>` : ''}
     ${s.notes ? `<div class="detail-section"><h4>📝 Notes</h4><div class="detail-notes">${s.notes}</div></div>` : ''}`;
