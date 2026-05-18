@@ -550,8 +550,8 @@ function addRaceEvent(d = null) {
         ${tireTbody}
         <tr>
           <td>Stagger</td>
-          <td><input id="re-stagger-rr-${i}" value="${staggerVal}"></td>
           <td></td><td></td><td></td>
+          <td><input id="re-stagger-rr-${i}" value="${staggerVal}"></td>
         </tr>
         <tr>
           <td>LR Spacing</td>
