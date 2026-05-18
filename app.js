@@ -524,10 +524,10 @@ function addRaceEvent(d = null) {
     return `<tr><td>${row}</td>${cells}</tr>`;
   }).join('');
 
-  const staggerVal   = d && d.tires && d.tires.stagger   ? d.tires.stagger.rr   || '' : '';
-  const lrSpacingVal = d && d.tires && d.tires.lr_spacing ? d.tires.lr_spacing   || '' : '';
-  const rrSpacingVal = d && d.tires && d.tires.rr_spacing ? d.tires.rr_spacing   || '' : '';
-  const wingVal      = d ? d.wing || '' : '';
+  const staggerVal = d && d.tires && d.tires.stagger ? d.tires.stagger.rr || '' : '';
+  const lrSpacingVal = d && d.tires ? d.tires.lr_spacing || '' : '';
+  const rrSpacingVal = d && d.tires ? d.tires.rr_spacing || '' : '';
+  const wingVal = d ? d.wing || '' : '';
 
   const div = document.createElement('div');
   div.className = 're-block';
@@ -606,13 +606,13 @@ function collectRE() {
     tires.rr_spacing = gv(`re-rr-spacing-${i}`);
 
     events.push({
-      start: gv(`re-start-${i}`),
-      finish: gv(`re-finish-${i}`),
+      start:   gv(`re-start-${i}`),
+      finish:  gv(`re-finish-${i}`),
       numCars: gv(`re-cars-${i}`),
-      laps: gv(`re-laps-${i}`),
-      cond: gv(`re-cond-${i}`),
-      wing: gv(`re-wing-${i}`),
-      note: gv(`re-note-${i}`),
+      laps:    gv(`re-laps-${i}`),
+      cond:    gv(`re-cond-${i}`),
+      wing:    gv(`re-wing-${i}`),
+      note:    gv(`re-note-${i}`),
       tires,
     });
   });
@@ -929,7 +929,7 @@ function openDetail(id) {
           ['Front Panhard',  s.bolt_ons ? s.bolt_ons.front_panhard : ''],
         ])}
       </div>` : ''}
-    ${(s.engine || s.gear || s.exhaust || s.injection || s.fp)
+    ${(s.engine || s.gear || s.exhaust || s.injection || s.fp || s.wing)
       ? `<div class="detail-section"><h4>⚙️ Engine / Other</h4>
           ${rows([['Engine',s.engine],['Gearing',s.gear],['Exhaust',s.exhaust],['Injection',s.injection],['Fuel Pressure',s.fp]])}
          </div>` : ''}
